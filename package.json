@@ -1,0 +1,25 @@
+{
+  "name": "md-link-check",
+  "version": "0.1.0",
+  "description": "Find broken anchor links, missing alt text, and heading slug collisions in Markdown files.",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "md-link-check": "src/index.js"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "start": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "markdown",
+    "links",
+    "anchors",
+    "linter",
+    "cli"
+  ],
+  "license": "MIT"
+}
