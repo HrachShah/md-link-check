@@ -15,9 +15,9 @@ test("extractHeadings returns level, text, and slug for each heading", () => {
   const src = "# Top\n\n## A Subsection\n\n### Deep heading here\n";
   const headings = extractHeadings(src);
   assert.equal(headings.length, 3);
-  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top" });
-  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection" });
-  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here" });
+  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top", index: 0 });
+  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection", index: 7 });
+  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here", index: 24 });
 });
 
 test("extractHeadings strips link targets before slugging", () => {
@@ -134,6 +134,26 @@ test("findIssues flags GitHub-style duplicate when a stripped heading collides",
   const dupes = issues.filter((i) => i.kind === "duplicate-heading");
   assert.equal(dupes.length, 1);
   assert.match(dupes[0].message, /setup-1/);
+});
+
+test("findIssues reports the actual line number of a duplicate heading", () => {
+  // Before the fix, extractHeadings didn't carry the regex match's index
+  // through, so duplicate-heading issues always reported line 1. After
+  // the fix the duplicate's line should point at where the duplicated
+  // heading actually lives in the source.
+  const src = "# Setup\n\nsome body\n\n## Setup\n";
+  const issues = findIssues(src);
+  const dupes = issues.filter((i) => i.kind === "duplicate-heading");
+  assert.equal(dupes.length, 1);
+  assert.equal(dupes[0].line, 5);
+});
+
+test("findIssues treats a #setup-1 anchor link as valid when the second heading dedups to it", () => {
+  // The "-1" suffix is the slug the second heading actually renders under.
+  // A link to that suffix should NOT be flagged as a broken anchor.
+  const src = "# Setup\n\n## Setup\n\nGo to [the second one](#setup-1).\n";
+  const issues = findIssues(src);
+  assert.equal(issues.filter((i) => i.kind === "broken-anchor").length, 0);
 });
 
 // --- findIssues: missing alt text ---------------------------------------
