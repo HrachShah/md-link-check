@@ -33,6 +33,15 @@ const HEADING_LINK_STRIP_RE = /!?\[([^\]]*)\]\([^)]*\)/g;
 // 'use-npm-install'. We drop only the backticks, NOT the inner text.
 const HEADING_CODE_STRIP_RE = /`+/g;
 
+function stripCodeFences(source) {
+  return source.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~/g, (match) => {
+    // Preserve line numbers by replacing the fenced block with the same
+    // number of newlines; this keeps character offsets in the returned
+    // string aligned with offsets in the original source.
+    return match.replace(/[^\n]/g, " ");
+  });
+}
+
 function extractHeadings(source) {
   const out = [];
   HEADING_RE.lastIndex = 0;
@@ -85,7 +94,8 @@ function extractImages(source) {
 // itself never touches the filesystem.
 function findIssues(source, path = "<input>") {
   const issues = [];
-  const headings = extractHeadings(source);
+  const scannable = stripCodeFences(source);
+  const headings = extractHeadings(scannable);
 
   // Assign each heading a deduplicated slug, the way GitHub renders them.
   const seen = new Map();
@@ -113,7 +123,7 @@ function findIssues(source, path = "<input>") {
   const validSlugs = new Set(headingSlugs.values());
 
   // Now check every anchor link against the set of valid slugs.
-  const inlineLinks = extractInlineLinks(source);
+  const inlineLinks = extractInlineLinks(scannable);
   for (const link of inlineLinks) {
     if (!link.href.startsWith("#")) continue;
     const target = link.href.slice(1).toLowerCase();
@@ -132,12 +142,12 @@ function findIssues(source, path = "<input>") {
   // deliberately-empty alt ("decorative image") is fine — we only flag
   // images whose alt text is literally missing from the source, i.e. the
   // '[]' form, not the '[decorative]' form.
-  const images = extractImages(source);
+  const images = extractImages(scannable);
   for (const img of images) {
     // We can tell 'missing alt' from 'empty alt' by looking at the
     // original source: `![]()` has 0 chars between the brackets, `![alt]()`
     // has >= 1. Use the captured `alt` length and the index to disambiguate.
-    if (img.alt === "" && isAltTrulyMissing(source, img.index)) {
+    if (img.alt === "" && isAltTrulyMissing(scannable, img.index)) {
       issues.push({
         kind: "missing-alt",
         line: lineOf(source, img.index),

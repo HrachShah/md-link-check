@@ -203,3 +203,72 @@ test("lineOf increments at every newline", () => {
   assert.equal(lineOf(src, 4), 2);
   assert.equal(lineOf(src, 8), 3);
 });
+
+// --- findIssues: fenced code blocks are not scanned --------------------
+
+test("findIssues ignores anchors inside triple-backtick fenced code blocks", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "```md",
+    "# This heading is in code",
+    "go to [fake](#this-heading-is-in-code)",
+    "```",
+    "",
+    "see [real](#real-heading)",
+  ].join("\n");
+  const issues = findIssues(src);
+  const broken = issues.filter((i) => i.kind === "broken-anchor");
+  assert.equal(broken.length, 0, "should not flag anchor inside a fenced block");
+});
+
+test("findIssues ignores headings inside triple-backtick fenced code blocks", () => {
+  const src = [
+    "# Top",
+    "",
+    "```",
+    "# Fake Heading In Code",
+    "## Another Fake",
+    "```",
+  ].join("\n");
+  const issues = findIssues(src);
+  const dupes = issues.filter((i) => i.kind === "duplicate-heading");
+  assert.equal(dupes.length, 0, "fake headings inside code must not collide with the real ones");
+  // The "Top" heading must be the only one we can link to.
+  const broken = issues.filter((i) => i.kind === "broken-anchor");
+  assert.equal(broken.length, 0);
+});
+
+test("findIssues ignores images inside triple-tilde fenced code blocks", () => {
+  const src = [
+    "# Real",
+    "",
+    "~~~",
+    "![](./should-not-be-flagged.png)",
+    "~~~",
+    "",
+    "see [r](#real)",
+  ].join("\n");
+  const issues = findIssues(src);
+  const missing = issues.filter((i) => i.kind === "missing-alt");
+  assert.equal(missing.length, 0, "image inside tilde-fenced block must not be flagged");
+});
+
+test("findIssues preserves the real line number when an issue lives after a code fence", () => {
+  // The fenced block on line 3-5 is stripped before scanning, but its
+  // newlines are preserved so line numbers reported to the user still
+  // point at the original source.
+  const src = [
+    "# Top",                 // 1
+    "",                      // 2
+    "```",                   // 3
+    "fake stuff",            // 4
+    "```",                   // 5
+    "",                      // 6
+    "see [bad](#nope)",      // 7
+  ].join("\n");
+  const issues = findIssues(src);
+  const broken = issues.filter((i) => i.kind === "broken-anchor");
+  assert.equal(broken.length, 1);
+  assert.equal(broken[0].line, 7, "line number should reflect the original source");
+});
