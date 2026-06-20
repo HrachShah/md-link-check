@@ -97,6 +97,42 @@ test("findIssues accepts a valid anchor link", () => {
   assert.equal(issues.filter((i) => i.kind === "broken-anchor").length, 0);
 });
 
+test("findIssues checks reference-style anchor links too", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "[jump][ref]",
+    "",
+    "[ref]: #real-heading",
+  ].join("\n");
+  const issues = findIssues(src);
+  assert.equal(issues.filter((i) => i.kind === "broken-anchor").length, 0);
+});
+
+test("findIssues flags broken reference-style anchor links", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "[jump][ref]",
+    "",
+    "[ref]: #missing",
+  ].join("\n");
+  const issues = findIssues(src);
+  const broken = issues.filter((i) => i.kind === "broken-anchor");
+  assert.equal(broken.length, 1);
+  assert.match(broken[0].message, /#missing/);
+});
+
+test("findIssues does not treat plain bracket text as an anchor", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "This is [just text] in prose.",
+  ].join("\n");
+  const issues = findIssues(src);
+  assert.equal(issues.filter((i) => i.kind === "broken-anchor").length, 0);
+});
+
 test("findIssues is case-insensitive on anchor matching (GitHub renders lowercased)", () => {
   const src = "# Real Heading\n\ngo to [r](#Real-Heading)\n";
   const issues = findIssues(src);

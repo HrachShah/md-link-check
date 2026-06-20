@@ -14,11 +14,18 @@ import { slugify } from "./slug.js";
 const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/gm;
 
 // Markdown links:  [text](href)  (skip images — those start with '!')
-// We also support reference-style links:  [text][ref]  and  [text]
+// We also support reference-style links:  [text][ref]  and shortcut
+// reference links:  [text] when a matching `[text]: ...` definition exists.
 const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
 
-// Bare reference link: [text] not followed by ( or [
-const SHORT_REF_RE = /\[([^\]]+)\](?!\s*[\(\[])/g;
+// Explicit reference links like `[text][ref]`.
+const REFERENCE_LINK_RE = /(?<!\!)\[([^\]]+)\]\[([^\]]+)\]/g;
+
+// Shortcut reference links like `[text]`.
+const SHORT_REF_RE = /\[([^\]]+)\](?!\s*[\(\[:])/g;
+
+// Reference definitions like `[ref]: #target`.
+const REFERENCE_DEF_RE = /^\s*\[([^\]]+)\]:\s*(\S+)/gm;
 
 // Images:  ![alt](src)
 const IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
@@ -71,12 +78,36 @@ function extractInlineLinks(source) {
   return out;
 }
 
-function extractShortRefLinks(source) {
+function extractReferenceDefinitions(source) {
+  const defs = new Map();
+  REFERENCE_DEF_RE.lastIndex = 0;
+  let m;
+  while ((m = REFERENCE_DEF_RE.exec(source)) !== null) {
+    defs.set(m[1].trim().toLowerCase(), m[2].trim());
+  }
+  return defs;
+}
+
+function extractReferenceLinks(source, defs) {
+  const out = [];
+  REFERENCE_LINK_RE.lastIndex = 0;
+  let m;
+  while ((m = REFERENCE_LINK_RE.exec(source)) !== null) {
+    const def = defs.get(m[2].trim().toLowerCase());
+    if (!def) continue;
+    out.push({ text: m[1], href: def, index: m.index });
+  }
+  return out;
+}
+
+function extractShortRefLinks(source, defs) {
   const out = [];
   SHORT_REF_RE.lastIndex = 0;
   let m;
   while ((m = SHORT_REF_RE.exec(source)) !== null) {
-    out.push({ text: m[1], index: m.index });
+    const def = defs.get(m[1].trim().toLowerCase());
+    if (!def) continue;
+    out.push({ text: m[1], href: def, index: m.index });
   }
   return out;
 }
@@ -100,6 +131,7 @@ function findIssues(source, path = "<input>") {
   const issues = [];
   const scannable = stripCodeFences(source);
   const headings = extractHeadings(scannable);
+  const refDefs = extractReferenceDefinitions(scannable);
 
   // Assign each heading a deduplicated slug, the way GitHub renders them.
   const seen = new Map();
@@ -127,9 +159,13 @@ function findIssues(source, path = "<input>") {
   const validSlugs = new Set(headingSlugs.values());
 
   // Now check every anchor link against the set of valid slugs.
-  const inlineLinks = extractInlineLinks(scannable);
-  for (const link of inlineLinks) {
-    if (!link.href.startsWith("#")) continue;
+  const anchorLinks = [
+    ...extractInlineLinks(scannable),
+    ...extractReferenceLinks(scannable, refDefs),
+    ...extractShortRefLinks(scannable, refDefs),
+  ];
+  for (const link of anchorLinks) {
+    if (!link.href?.startsWith("#")) continue;
     const target = link.href.slice(1).toLowerCase();
     if (target === "") continue; // "[](#)" — a placeholder, skip
     if (!validSlugs.has(target)) {
