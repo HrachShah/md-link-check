@@ -15,9 +15,9 @@ test("extractHeadings returns level, text, and slug for each heading", () => {
   const src = "# Top\n\n## A Subsection\n\n### Deep heading here\n";
   const headings = extractHeadings(src);
   assert.equal(headings.length, 3);
-  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top" });
-  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection" });
-  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here" });
+  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top", index: 0 });
+  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection", index: 7 });
+  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here", index: 24 });
 });
 
 test("extractHeadings strips link targets before slugging", () => {
@@ -97,6 +97,42 @@ test("findIssues accepts a valid anchor link", () => {
   assert.equal(issues.filter((i) => i.kind === "broken-anchor").length, 0);
 });
 
+test("findIssues checks reference-style anchor links too", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "[jump][ref]",
+    "",
+    "[ref]: #real-heading",
+  ].join("\n");
+  const issues = findIssues(src);
+  assert.equal(issues.filter((i) => i.kind === "broken-anchor").length, 0);
+});
+
+test("findIssues flags broken reference-style anchor links", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "[jump][ref]",
+    "",
+    "[ref]: #missing",
+  ].join("\n");
+  const issues = findIssues(src);
+  const broken = issues.filter((i) => i.kind === "broken-anchor");
+  assert.equal(broken.length, 1);
+  assert.match(broken[0].message, /#missing/);
+});
+
+test("findIssues does not treat plain bracket text as an anchor", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "This is [just text] in prose.",
+  ].join("\n");
+  const issues = findIssues(src);
+  assert.equal(issues.filter((i) => i.kind === "broken-anchor").length, 0);
+});
+
 test("findIssues is case-insensitive on anchor matching (GitHub renders lowercased)", () => {
   const src = "# Real Heading\n\ngo to [r](#Real-Heading)\n";
   const issues = findIssues(src);
@@ -123,6 +159,14 @@ test("findIssues does NOT flag headings whose slugs differ", () => {
   const src = "# Setup\n\n## Setup (advanced)\n\n## Config\n";
   const issues = findIssues(src);
   assert.equal(issues.filter((i) => i.kind === "duplicate-heading").length, 0);
+});
+
+test("findIssues reports duplicate heading on the duplicate's own line", () => {
+  const src = "# Setup\n\n# Setup\n";
+  const issues = findIssues(src);
+  const dupes = issues.filter((i) => i.kind === "duplicate-heading");
+  assert.equal(dupes.length, 1);
+  assert.equal(dupes[0].line, 3, "duplicate should be reported on line 3, not line 1");
 });
 
 test("findIssues flags GitHub-style duplicate when a stripped heading collides", () => {
@@ -202,4 +246,73 @@ test("lineOf increments at every newline", () => {
   assert.equal(lineOf(src, 0), 1);
   assert.equal(lineOf(src, 4), 2);
   assert.equal(lineOf(src, 8), 3);
+});
+
+// --- findIssues: fenced code blocks are not scanned --------------------
+
+test("findIssues ignores anchors inside triple-backtick fenced code blocks", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "```md",
+    "# This heading is in code",
+    "go to [fake](#this-heading-is-in-code)",
+    "```",
+    "",
+    "see [real](#real-heading)",
+  ].join("\n");
+  const issues = findIssues(src);
+  const broken = issues.filter((i) => i.kind === "broken-anchor");
+  assert.equal(broken.length, 0, "should not flag anchor inside a fenced block");
+});
+
+test("findIssues ignores headings inside triple-backtick fenced code blocks", () => {
+  const src = [
+    "# Top",
+    "",
+    "```",
+    "# Fake Heading In Code",
+    "## Another Fake",
+    "```",
+  ].join("\n");
+  const issues = findIssues(src);
+  const dupes = issues.filter((i) => i.kind === "duplicate-heading");
+  assert.equal(dupes.length, 0, "fake headings inside code must not collide with the real ones");
+  // The "Top" heading must be the only one we can link to.
+  const broken = issues.filter((i) => i.kind === "broken-anchor");
+  assert.equal(broken.length, 0);
+});
+
+test("findIssues ignores images inside triple-tilde fenced code blocks", () => {
+  const src = [
+    "# Real",
+    "",
+    "~~~",
+    "![](./should-not-be-flagged.png)",
+    "~~~",
+    "",
+    "see [r](#real)",
+  ].join("\n");
+  const issues = findIssues(src);
+  const missing = issues.filter((i) => i.kind === "missing-alt");
+  assert.equal(missing.length, 0, "image inside tilde-fenced block must not be flagged");
+});
+
+test("findIssues preserves the real line number when an issue lives after a code fence", () => {
+  // The fenced block on line 3-5 is stripped before scanning, but its
+  // newlines are preserved so line numbers reported to the user still
+  // point at the original source.
+  const src = [
+    "# Top",                 // 1
+    "",                      // 2
+    "```",                   // 3
+    "fake stuff",            // 4
+    "```",                   // 5
+    "",                      // 6
+    "see [bad](#nope)",      // 7
+  ].join("\n");
+  const issues = findIssues(src);
+  const broken = issues.filter((i) => i.kind === "broken-anchor");
+  assert.equal(broken.length, 1);
+  assert.equal(broken[0].line, 7, "line number should reflect the original source");
 });
