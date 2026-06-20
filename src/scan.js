@@ -52,7 +52,11 @@ function extractHeadings(source) {
     const stripped = raw
       .replace(HEADING_LINK_STRIP_RE, "$1")
       .replace(HEADING_CODE_STRIP_RE, "");
-    out.push({ level, text: raw, slug: slugify(stripped) });
+    // Capture the match offset so findIssues can resolve it back to a line
+    // number in the original source. The earlier extractors (inline links,
+    // short refs, images) already do this; headings were the odd one out and
+    // it caused every `duplicate-heading` issue to be reported on line 1.
+    out.push({ level, text: raw, slug: slugify(stripped), index: m.index });
   }
   return out;
 }

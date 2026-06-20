@@ -15,9 +15,9 @@ test("extractHeadings returns level, text, and slug for each heading", () => {
   const src = "# Top\n\n## A Subsection\n\n### Deep heading here\n";
   const headings = extractHeadings(src);
   assert.equal(headings.length, 3);
-  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top" });
-  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection" });
-  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here" });
+  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top", index: 0 });
+  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection", index: 7 });
+  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here", index: 24 });
 });
 
 test("extractHeadings strips link targets before slugging", () => {
@@ -123,6 +123,14 @@ test("findIssues does NOT flag headings whose slugs differ", () => {
   const src = "# Setup\n\n## Setup (advanced)\n\n## Config\n";
   const issues = findIssues(src);
   assert.equal(issues.filter((i) => i.kind === "duplicate-heading").length, 0);
+});
+
+test("findIssues reports duplicate heading on the duplicate's own line", () => {
+  const src = "# Setup\n\n# Setup\n";
+  const issues = findIssues(src);
+  const dupes = issues.filter((i) => i.kind === "duplicate-heading");
+  assert.equal(dupes.length, 1);
+  assert.equal(dupes[0].line, 3, "duplicate should be reported on line 3, not line 1");
 });
 
 test("findIssues flags GitHub-style duplicate when a stripped heading collides", () => {
