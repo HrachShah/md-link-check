@@ -35,3 +35,13 @@ test("returns empty string for empty input", () => {
 test("returns empty string for whitespace-only input", () => {
   assert.equal(slugify("   \t\n"), "");
 });
+
+test("collapses runs of hyphens into a single hyphen", () => {
+  assert.equal(slugify("foo---bar"), "foo-bar");
+  assert.equal(slugify("a----b------c"), "a-b-c");
+});
+
+test("trims leading and trailing hyphens left over from dropped punctuation", () => {
+  assert.equal(slugify("---foo---"), "foo");
+  assert.equal(slugify("!!!foo!!!"), "foo");
+});
