@@ -35,3 +35,13 @@ test("returns empty string for empty input", () => {
 test("returns empty string for whitespace-only input", () => {
   assert.equal(slugify("   \t\n"), "");
 });
+
+test("trims leading and trailing hyphens left over from dropped punctuation", () => {
+  // Before the fix, "---foo---" produced "---foo---" because the
+  // strip-punctuation step leaves the surrounding hyphens in place
+  // and the only .trim() runs on whitespace, not on hyphens.
+  // GitHub collapses these to "foo" — same as the trim-hyphen test
+  // for whitespace.
+  assert.equal(slugify("---foo---"), "foo");
+  assert.equal(slugify("  --hi--  "), "hi");
+});
