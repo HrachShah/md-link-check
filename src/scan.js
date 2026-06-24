@@ -15,18 +15,31 @@ const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/gm;
 
 // Markdown links:  [text](href)  (skip images — those start with '!')
 // We also support reference-style links:  [text][ref]  and  [text]
-const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
+// The URL may contain one level of balanced parens — required for
+// CommonMark-conformant links to Wikipedia and other URLs that include
+// disambiguation like /wiki/Foo_(bar). The shape is:
+//   text: any run (including empty) of non-']' chars
+//   url:  a run of chars that may include one balanced pair of parens
+//   title (optional): a double-quoted string after a single space
+// We capture the title as group 3 when present, so callers that ignore
+// it (extractInlineLinks, extractImages) can still rely on m[2] for the
+// URL.
+const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\(((?:[^()\s]|\([^()]*\))*)(?:\s+"([^"]*)")?\)/g;
 
 // Bare reference link: [text] not followed by ( or [
 const SHORT_REF_RE = /\[([^\]]+)\](?!\s*[\(\[])/g;
 
-// Images:  ![alt](src)
-const IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
+// Images:  ![alt](src)  — same balanced-paren shape as INLINE_LINK_RE so
+// image URLs that contain parens (e.g. Wikimedia Commons file URLs) are
+// preserved verbatim instead of being truncated at the first ')'.
+const IMAGE_RE = /!\[([^\]]*)\]\(((?:[^()\s]|\([^()]*\))*)(?:\s+"([^"]*)")?\)/g;
 
 // Headings have content between [start] markers that may include link
 // targets. Strip them before slugging, so '# See [foo](bar)' produces
-// 'see-foo' rather than 'see-foobar'.
-const HEADING_LINK_STRIP_RE = /!?\[([^\]]*)\]\([^)]*\)/g;
+// 'see-foo' rather than 'see-foobar'. Mirrors the balanced-paren shape
+// of INLINE_LINK_RE so URLs that include parens are stripped cleanly
+// instead of leaving a stray ')' in the heading text.
+const HEADING_LINK_STRIP_RE = /!?\[([^\]]*)\]\((?:[^()\s]|\([^()]*\))*\)/g;
 
 // Strip inline code (single backticks) from heading text before slugging,
 // because GitHub does the same: '# Use `npm install`' becomes

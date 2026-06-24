@@ -64,6 +64,30 @@ test("extractInlineLinks keeps anchor-only hrefs", () => {
   assert.equal(links[0].href, "#somewhere");
 });
 
+test("extractInlineLinks preserves balanced parens inside the URL", () => {
+  // CommonMark allows one level of balanced parens inside a link URL.
+  // Wikipedia disambiguation links are the canonical real-world example.
+  const links = extractInlineLinks(
+    "[foo](https://en.wikipedia.org/wiki/Foo_(bar))",
+  );
+  assert.equal(links.length, 1);
+  assert.equal(
+    links[0].href,
+    "https://en.wikipedia.org/wiki/Foo_(bar)",
+  );
+});
+
+test("extractInlineLinks keeps the optional title and still allows parens in the URL", () => {
+  const links = extractInlineLinks(
+    '[foo](https://en.wikipedia.org/wiki/Foo_(bar) "the Foo article")',
+  );
+  assert.equal(links.length, 1);
+  assert.equal(
+    links[0].href,
+    "https://en.wikipedia.org/wiki/Foo_(bar)",
+  );
+});
+
 // --- extractImages -------------------------------------------------------
 
 test("extractImages finds images with alt text", () => {
@@ -79,6 +103,15 @@ test("extractImages keeps empty alt string when brackets are empty", () => {
   const images = extractImages("![](decorative.png)");
   assert.equal(images.length, 1);
   assert.equal(images[0].alt, "");
+});
+
+test("extractImages preserves balanced parens inside the image src", () => {
+  const images = extractImages(
+    "![pic](https://en.wikipedia.org/wiki/File:Pic_(test).png)",
+  );
+  assert.equal(images.length, 1);
+  assert.equal(images[0].src, "https://en.wikipedia.org/wiki/File:Pic_(test).png");
+  assert.equal(images[0].alt, "pic");
 });
 
 // --- findIssues: anchors --------------------------------------------------
@@ -189,6 +222,16 @@ test("findIssues returns no issues for a clean document", () => {
     "![logo](logo.png)",
   ].join("\n");
   assert.equal(findIssues(src).length, 0);
+});
+
+test("extractHeadings strips links whose URLs contain balanced parens", () => {
+  // The slug must reflect only the link text — the URL (with its parens)
+  // should not appear in the slug. This guards HEADING_LINK_STRIP_RE.
+  const headings = extractHeadings(
+    "# See [Wikipedia](https://en.wikipedia.org/wiki/Foo_(bar))\n",
+  );
+  assert.equal(headings.length, 1);
+  assert.equal(headings[0].slug, "see-wikipedia");
 });
 
 // --- lineOf -------------------------------------------------------------
