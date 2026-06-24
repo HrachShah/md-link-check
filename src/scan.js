@@ -56,7 +56,7 @@ function extractHeadings(source) {
     const stripped = raw
       .replace(HEADING_LINK_STRIP_RE, "$1")
       .replace(HEADING_CODE_STRIP_RE, "");
-    out.push({ level, text: raw, slug: slugify(stripped) });
+    out.push({ level, text: raw, slug: slugify(stripped), index: m.index });
   }
   return out;
 }

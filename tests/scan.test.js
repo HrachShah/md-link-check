@@ -15,9 +15,9 @@ test("extractHeadings returns level, text, and slug for each heading", () => {
   const src = "# Top\n\n## A Subsection\n\n### Deep heading here\n";
   const headings = extractHeadings(src);
   assert.equal(headings.length, 3);
-  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top" });
-  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection" });
-  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here" });
+  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top", index: 0 });
+  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection", index: 7 });
+  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here", index: 24 });
 });
 
 test("extractHeadings strips link targets before slugging", () => {
@@ -167,6 +167,24 @@ test("findIssues flags GitHub-style duplicate when a stripped heading collides",
   const dupes = issues.filter((i) => i.kind === "duplicate-heading");
   assert.equal(dupes.length, 1);
   assert.match(dupes[0].message, /setup-1/);
+});
+
+test("findIssues reports the correct line number for a duplicate heading", () => {
+  // Regression: extractHeadings previously did not capture the match's
+  // character offset, so findIssues always reported line 1 for duplicate
+  // headings even when they appeared on a later line. The reporter now
+  // walks to the heading's source offset, so each duplicate gets its own
+  // line.
+  const src = ["# Top", "", "# Top", "", "# Top"].join("\n");
+  const issues = findIssues(src);
+  const dupes = issues
+    .filter((i) => i.kind === "duplicate-heading")
+    .sort((a, b) => a.line - b.line);
+  assert.equal(dupes.length, 2);
+  assert.equal(dupes[0].line, 3);
+  assert.equal(dupes[1].line, 5);
+  // And the first heading on line 1 must NOT be reported.
+  assert.equal(dupes.some((d) => d.line === 1), false);
 });
 
 // --- findIssues: missing alt text ---------------------------------------
