@@ -124,10 +124,8 @@ async function main(argv) {
 
 // Run when invoked directly (`node src/index.js` or the installed bin).
 // Module can still be imported for tests because of this guard.
-if (
-  import.meta.url === pathToFileURL(process.argv[1]).href ||
-  import.meta.url === pathToFileURL(process.argv[1] ?? "").href
-) {
+const entryArg = process.argv[1];
+if (entryArg && import.meta.url === pathToFileURL(entryArg).href) {
   main(process.argv.slice(2))
     .then((code) => process.exit(code))
     .catch((err) => {
