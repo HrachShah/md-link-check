@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const CLI = fileURLToPath(new URL("../src/index.js", import.meta.url));
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 function runCli(args, opts = {}) {
   return new Promise((resolveRun, rejectRun) => {
@@ -89,4 +90,27 @@ test("CLI exits 2 when given a non-existent path", async () => {
   const { code, err } = await runCli(["/nonexistent/path/to/file.md"]);
   assert.equal(code, 2);
   assert.match(err, /cannot read/);
+});
+
+// Regression: importing src/index.js as a module must not crash the
+// importer. The entrypoint guard originally did
+// `pathToFileURL(process.argv[1] ?? "")`, which throws ERR_INVALID_ARG_TYPE
+// when the module is imported in a context with no script path
+// (e.g. `node --input-type=module -e "import('./src/index.js')"`,
+// or any library that does a dynamic import without setting argv[1]).
+test("importing src/index.js as a module does not run the CLI", async () => {
+  // Run the import in a child Node process whose argv[1] is undefined,
+  // which is the exact condition that crashed the original guard.
+  const child = spawn(
+    process.execPath,
+    ["--input-type=module", "-e", "import('./src/index.js').then(m => process.stdout.write('OK ' + Object.keys(m).sort().join(',')))"],
+    { stdio: ["ignore", "pipe", "pipe"], cwd: ROOT },
+  );
+  let out = "";
+  let err = "";
+  child.stdout.on("data", (b) => (out += b.toString("utf8")));
+  child.stderr.on("data", (b) => (err += b.toString("utf8")));
+  const code = await new Promise((resolve) => child.on("close", resolve));
+  assert.equal(code, 0, `child exited with ${code}; stderr=${err}`);
+  assert.match(out, /OK formatIssue,main/);
 });
