@@ -264,3 +264,89 @@ test("lineOf increments at every newline", () => {
   assert.equal(lineOf(src, 4), 2);
   assert.equal(lineOf(src, 8), 3);
 });
+
+// --- fenced code blocks -------------------------------------------------
+
+test("fenced code block content is not treated as headings or anchor targets", () => {
+  // Without fence skipping, the inner # heading and link would either be
+  // parsed as real headings (false-positive collisions) or flag the
+  // [link](#inner) as broken.
+  const src = [
+    "# Real Heading",
+    "",
+    "```bash",
+    "# Fake Heading In Code",
+    "[link](#inner)",
+    "```",
+    "",
+  ].join("\n");
+  assert.equal(findIssues(src).length, 0);
+});
+
+test("fenced block links are skipped, but real links outside the fence are still checked", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "```",
+    "[in-fence](#not-a-heading)",
+    "```",
+    "",
+    "[real-but-broken](#also-not-a-heading)",
+    "",
+  ].join("\n");
+  const issues = findIssues(src);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].kind, "broken-anchor");
+  assert.match(issues[0].message, /#also-not-a-heading/);
+});
+
+test("tilde fence markers (~~~) are also recognized as code fences", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "~~~",
+    "# Tilde Fence Heading",
+    "[link](#inner)",
+    "~~~",
+    "",
+  ].join("\n");
+  assert.equal(findIssues(src).length, 0);
+});
+
+test("unclosed fence does not swallow the rest of the document", () => {
+  // If the closing fence is missing we should not blank the trailing
+  // content — real broken links past the unclosed fence must still be
+  // reported.
+  const src = [
+    "# Real Heading",
+    "",
+    "```",
+    "[in-unclosed-fence](#inner)",
+    "[real-but-broken](#also-missing)",
+  ].join("\n");
+  const issues = findIssues(src);
+  // Expect the real broken link to be caught. The in-fence link may or
+  // may not be reported depending on policy, but the post-fence broken
+  // link must always be reported.
+  const real = issues.find((i) => /#also-missing/.test(i.message));
+  assert.ok(real, "post-fence broken link should be reported");
+});
+
+test("fence-masked source preserves character offsets for line number reporting", () => {
+  // The reported line for the real broken link should match the line
+  // number in the original source, not the masked one (they're identical
+  // because we only blank characters, not remove them).
+  const src = [
+    "# Real Heading",
+    "",
+    "```",
+    "[in-fence](#inner)",
+    "```",
+    "",
+    "line 7 has the real link: [broken](#missing-heading)",
+    "",
+  ].join("\n");
+  const issues = findIssues(src);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].line, 7);
+});
