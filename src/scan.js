@@ -9,29 +9,104 @@ import { slugify } from "./slug.js";
 
 // A heading is "#", "##", … up to 6 '#'s, then text. We don't try to
 // disambiguate ATX headings inside fenced code — the rest of the regex
-// already disallows 'inline backticks' for the simple case, and a stricter
-// fenced-block skip lives in `findIssues`.
+// already disallows 'inline backticks' for the simple case. The actual
+// fenced-block skip lives in `stripFencedCodeBlocks` below: `findIssues`
+// masks fence regions with spaces before extracting, so regex matches
+// outside fences keep their original indexes and line numbers.
 const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/gm;
 
 // Markdown links:  [text](href)  (skip images — those start with '!')
 // We also support reference-style links:  [text][ref]  and  [text]
-const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
+// The URL may contain one level of balanced parens — required for
+// CommonMark-conformant links to Wikipedia and other URLs that include
+// disambiguation like /wiki/Foo_(bar). The shape is:
+//   text: any run (including empty) of non-']' chars
+//   url:  a run of chars that may include one balanced pair of parens
+//   title (optional): a double-quoted string after a single space
+// We capture the title as group 3 when present, so callers that ignore
+// it (extractInlineLinks, extractImages) can still rely on m[2] for the
+// URL.
+const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\(((?:[^()\s]|\([^()]*\))*)(?:\s+"([^"]*)")?\)/g;
 
-// Bare reference link: [text] not followed by ( or [
-const SHORT_REF_RE = /\[([^\]]+)\](?!\s*[\(\[])/g;
+// Images:  ![alt](src)  — same balanced-paren shape as INLINE_LINK_RE so
+// image URLs that contain parens (e.g. Wikimedia Commons file URLs) are
+// preserved verbatim instead of being truncated at the first ')'.
+const IMAGE_RE = /!\[([^\]]*)\]\(((?:[^()\s]|\([^()]*\))*)(?:\s+"([^"]*)")?\)/g;
 
-// Images:  ![alt](src)
-const IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
+// Fenced code blocks: ``` … ``` or ~~~ … ~~~ (with an optional info string
+// after the opening fence). Used to mask fence contents with spaces so
+// headings/links/images inside fences are ignored by the extractors while
+// their source offsets stay intact.
+const FENCE_OPEN_RE = /^([`~]{3,})[^`~\n]*$/m;
 
 // Headings have content between [start] markers that may include link
 // targets. Strip them before slugging, so '# See [foo](bar)' produces
-// 'see-foo' rather than 'see-foobar'.
-const HEADING_LINK_STRIP_RE = /!?\[([^\]]*)\]\([^)]*\)/g;
+// 'see-foo' rather than 'see-foobar'. Mirrors the balanced-paren shape
+// of INLINE_LINK_RE so URLs that include parens are stripped cleanly
+// instead of leaving a stray ')' in the heading text.
+const HEADING_LINK_STRIP_RE = /!?\[([^\]]*)\]\((?:[^()\s]|\([^()]*\))*\)/g;
 
 // Strip inline code (single backticks) from heading text before slugging,
 // because GitHub does the same: '# Use `npm install`' becomes
 // 'use-npm-install'. We drop only the backticks, NOT the inner text.
 const HEADING_CODE_STRIP_RE = /`+/g;
+
+// Replace the contents of every fenced code block with spaces, leaving the
+// block's length and line count unchanged. Lines inside the block are
+// blanked character-for-character so any regex with `^` and `m` flag (or
+// the `m.index` it returns) keeps matching the original offsets. The
+// result is a copy of `source` safe to feed to the extractors: nothing
+// inside a fence will be mistaken for a heading, link, or image, even
+// when the fence's content would otherwise look like one.
+//
+// We support two fence characters (` and ~), per CommonMark §4.5. The
+// opening fence must be at the start of a line and have an optional info
+// string; the matching closing fence must use the same character and be
+// at least as long. Unclosed fences are conservatively left alone — better
+// to over-report than to swallow real markdown.
+function stripFencedCodeBlocks(source) {
+  const lines = source.split("\n");
+  const out = lines.slice();
+  let openMarker = null; // null | { char, length, startLine }
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (openMarker === null) {
+      const m = /^\s*([`~]{3,})[^`~\n]*$/.exec(line);
+      if (!m) continue;
+      const marker = m[1];
+      openMarker = { char: marker[0], length: marker.length, startLine: i };
+      // Blank the opening fence line so the heading regex can't see a
+      // `# foo` lookalike. Preserve newlines (the join below restores
+      // them) by keeping the line as a same-length run of spaces.
+      out[i] = " ".repeat(line.length);
+    } else {
+      const char = openMarker.char === "`" ? "`" : "~";
+      const m = new RegExp(
+        `^\\s*\\${char}{${openMarker.length},}[ \\t]*$`,
+      ).exec(line);
+      if (m) {
+        // Blank the line that closes the fence.
+        out[i] = " ".repeat(line.length);
+        openMarker = null;
+      } else {
+        // Inside the fence: blank the whole line so its contents can't
+        // match HEADING_RE, INLINE_LINK_RE, or IMAGE_RE.
+        out[i] = " ".repeat(line.length);
+      }
+    }
+  }
+  // An unclosed fence is left intact — we don't guess where the user
+  // meant it to end. Restore the original lines from the opening fence
+  // onwards so the rest of the document is still checked. This matches
+  // the "conservatively left alone" comment above and avoids silently
+  // masking real headings or links after a stray opening fence.
+  if (openMarker !== null) {
+    for (let i = openMarker.startLine; i < lines.length; i++) {
+      out[i] = lines[i];
+    }
+  }
+  return out.join("\n");
+}
 
 function extractHeadings(source) {
   const out = [];
@@ -43,7 +118,7 @@ function extractHeadings(source) {
     const stripped = raw
       .replace(HEADING_LINK_STRIP_RE, "$1")
       .replace(HEADING_CODE_STRIP_RE, "");
-    out.push({ level, text: raw, slug: slugify(stripped) });
+    out.push({ level, text: raw, slug: slugify(stripped), index: m.index });
   }
   return out;
 }
@@ -54,16 +129,6 @@ function extractInlineLinks(source) {
   let m;
   while ((m = INLINE_LINK_RE.exec(source)) !== null) {
     out.push({ text: m[1], href: m[2], index: m.index });
-  }
-  return out;
-}
-
-function extractShortRefLinks(source) {
-  const out = [];
-  SHORT_REF_RE.lastIndex = 0;
-  let m;
-  while ((m = SHORT_REF_RE.exec(source)) !== null) {
-    out.push({ text: m[1], index: m.index });
   }
   return out;
 }
@@ -85,7 +150,13 @@ function extractImages(source) {
 // itself never touches the filesystem.
 function findIssues(source, path = "<input>") {
   const issues = [];
-  const headings = extractHeadings(source);
+  // Mask fenced code blocks before extracting so a `#` heading or
+  // `[link](#foo)` inside a documentation code sample doesn't get
+  // treated as real markdown. The mask preserves offsets, so the
+  // `lineOf` calls below still report the correct source lines for
+  // any matches we DO find outside fences.
+  const masked = stripFencedCodeBlocks(source);
+  const headings = extractHeadings(masked);
 
   // Assign each heading a deduplicated slug, the way GitHub renders them.
   const seen = new Map();
@@ -113,7 +184,7 @@ function findIssues(source, path = "<input>") {
   const validSlugs = new Set(headingSlugs.values());
 
   // Now check every anchor link against the set of valid slugs.
-  const inlineLinks = extractInlineLinks(source);
+  const inlineLinks = extractInlineLinks(masked);
   for (const link of inlineLinks) {
     if (!link.href.startsWith("#")) continue;
     const target = link.href.slice(1).toLowerCase();
@@ -132,7 +203,7 @@ function findIssues(source, path = "<input>") {
   // deliberately-empty alt ("decorative image") is fine — we only flag
   // images whose alt text is literally missing from the source, i.e. the
   // '[]' form, not the '[decorative]' form.
-  const images = extractImages(source);
+  const images = extractImages(masked);
   for (const img of images) {
     // We can tell 'missing alt' from 'empty alt' by looking at the
     // original source: `![]()` has 0 chars between the brackets, `![alt]()`
