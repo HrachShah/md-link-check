@@ -15,6 +15,15 @@ import { slugify } from "./slug.js";
 // outside fences keep their original indexes and line numbers.
 const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/gm;
 
+// Setext-style headings: a non-empty text line followed by a line of only
+// "=" chars (level 1) or "-" chars (level 2). Per CommonMark §4.3 the
+// underline may be indented up to 3 spaces and the trailing spaces don't
+// matter, but the text line must not be blank and must not itself be a
+// block-level construct (a paragraph line is fine). Setext headings
+// coexist with ATX headings and produce the same {level, text, slug, index}
+// shape from extractHeadings.
+const SETEXT_HEADING_RE = /^([ \t]{0,3})(?<text>\S.*)\n[ \t]{0,3}(?<uline>={1,}|\-{1,})[ \t]*(?:\n|$)/gm;
+
 // Markdown links:  [text](href)  (skip images — those start with '!')
 // We also support reference-style links:  [text][ref]  and  [text]
 // The URL may contain one level of balanced parens — required for
@@ -110,6 +119,20 @@ function stripFencedCodeBlocks(source) {
 
 function extractHeadings(source) {
   const out = [];
+  // Setext headings come first because their underline lines are about
+  // to be blanked by the ATX pass below (the underline looks like an
+  // Setext h1/h2 marker, not an ATX heading). Index points at the start
+  // of the text line so the rest of the report is line-accurate.
+  SETEXT_HEADING_RE.lastIndex = 0;
+  let sm;
+  while ((sm = SETEXT_HEADING_RE.exec(source)) !== null) {
+    const raw = sm.groups.text;
+    const level = sm.groups.uline.startsWith("=") ? 1 : 2;
+    const stripped = raw
+      .replace(HEADING_LINK_STRIP_RE, "$1")
+      .replace(HEADING_CODE_STRIP_RE, "");
+    out.push({ level, text: raw, slug: slugify(stripped), index: sm.index });
+  }
   HEADING_RE.lastIndex = 0;
   let m;
   while ((m = HEADING_RE.exec(source)) !== null) {
@@ -120,6 +143,9 @@ function extractHeadings(source) {
       .replace(HEADING_CODE_STRIP_RE, "");
     out.push({ level, text: raw, slug: slugify(stripped), index: m.index });
   }
+  // Return in document order. Mixed ATX/Setext documents are valid, so
+  // sort by source offset rather than walking the file twice.
+  out.sort((a, b) => a.index - b.index);
   return out;
 }
 

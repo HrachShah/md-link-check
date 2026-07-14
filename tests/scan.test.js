@@ -41,6 +41,36 @@ test("extractHeadings handles up to 6 levels of #", () => {
   assert.deepEqual(headings.map((h) => h.level), [1, 2, 3, 4, 5, 6]);
 });
 
+test("extractHeadings recognises setext-style h1 (===) and h2 (---) underlines", () => {
+  const src = "Setext Title\n============\n\nbody line\n\nSubsection\n----------\n";
+  const headings = extractHeadings(src);
+  assert.equal(headings.length, 2);
+  assert.deepEqual(headings[0], { level: 1, text: "Setext Title", slug: "setext-title", index: 0 });
+  assert.deepEqual(headings[1], { level: 2, text: "Subsection", slug: "subsection", index: src.indexOf("Subsection") });
+});
+
+test("extractHeadings returns setext and ATX headings in document order", () => {
+  const src = "ATX One\n========\n\n## ATX Two\n\nSetext Three\n------------\n";
+  const headings = extractHeadings(src);
+  assert.deepEqual(
+    headings.map((h) => h.level),
+    [1, 2, 2],
+  );
+  assert.deepEqual(
+    headings.map((h) => h.text),
+    ["ATX One", "ATX Two", "Setext Three"],
+  );
+});
+
+test("extractHeadings does not mistake a paragraph underline for a setext heading", () => {
+  // A blank line between the text and the underline invalidates the
+  // setext form per CommonMark §4.3, so the dash line should not be
+  // picked up as an h2 marker.
+  const src = "First line\n\n---\n";
+  const headings = extractHeadings(src);
+  assert.equal(headings.length, 0);
+});
+
 // --- extractInlineLinks --------------------------------------------------
 
 test("extractInlineLinks finds inline links and ignores images", () => {
