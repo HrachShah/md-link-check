@@ -15,9 +15,9 @@ test("extractHeadings returns level, text, and slug for each heading", () => {
   const src = "# Top\n\n## A Subsection\n\n### Deep heading here\n";
   const headings = extractHeadings(src);
   assert.equal(headings.length, 3);
-  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top" });
-  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection" });
-  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here" });
+  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top", index: 0 });
+  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection", index: 7 });
+  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here", index: 24 });
 });
 
 test("extractHeadings strips link targets before slugging", () => {
@@ -39,6 +39,36 @@ test("extractHeadings handles up to 6 levels of #", () => {
   const headings = extractHeadings(src);
   assert.equal(headings.length, 6);
   assert.deepEqual(headings.map((h) => h.level), [1, 2, 3, 4, 5, 6]);
+});
+
+test("extractHeadings recognises setext-style h1 (===) and h2 (---) underlines", () => {
+  const src = "Setext Title\n============\n\nbody line\n\nSubsection\n----------\n";
+  const headings = extractHeadings(src);
+  assert.equal(headings.length, 2);
+  assert.deepEqual(headings[0], { level: 1, text: "Setext Title", slug: "setext-title", index: 0 });
+  assert.deepEqual(headings[1], { level: 2, text: "Subsection", slug: "subsection", index: src.indexOf("Subsection") });
+});
+
+test("extractHeadings returns setext and ATX headings in document order", () => {
+  const src = "ATX One\n========\n\n## ATX Two\n\nSetext Three\n------------\n";
+  const headings = extractHeadings(src);
+  assert.deepEqual(
+    headings.map((h) => h.level),
+    [1, 2, 2],
+  );
+  assert.deepEqual(
+    headings.map((h) => h.text),
+    ["ATX One", "ATX Two", "Setext Three"],
+  );
+});
+
+test("extractHeadings does not mistake a paragraph underline for a setext heading", () => {
+  // A blank line between the text and the underline invalidates the
+  // setext form per CommonMark §4.3, so the dash line should not be
+  // picked up as an h2 marker.
+  const src = "First line\n\n---\n";
+  const headings = extractHeadings(src);
+  assert.equal(headings.length, 0);
 });
 
 // --- extractInlineLinks --------------------------------------------------
@@ -64,6 +94,30 @@ test("extractInlineLinks keeps anchor-only hrefs", () => {
   assert.equal(links[0].href, "#somewhere");
 });
 
+test("extractInlineLinks preserves balanced parens inside the URL", () => {
+  // CommonMark allows one level of balanced parens inside a link URL.
+  // Wikipedia disambiguation links are the canonical real-world example.
+  const links = extractInlineLinks(
+    "[foo](https://en.wikipedia.org/wiki/Foo_(bar))",
+  );
+  assert.equal(links.length, 1);
+  assert.equal(
+    links[0].href,
+    "https://en.wikipedia.org/wiki/Foo_(bar)",
+  );
+});
+
+test("extractInlineLinks keeps the optional title and still allows parens in the URL", () => {
+  const links = extractInlineLinks(
+    '[foo](https://en.wikipedia.org/wiki/Foo_(bar) "the Foo article")',
+  );
+  assert.equal(links.length, 1);
+  assert.equal(
+    links[0].href,
+    "https://en.wikipedia.org/wiki/Foo_(bar)",
+  );
+});
+
 // --- extractImages -------------------------------------------------------
 
 test("extractImages finds images with alt text", () => {
@@ -79,6 +133,15 @@ test("extractImages keeps empty alt string when brackets are empty", () => {
   const images = extractImages("![](decorative.png)");
   assert.equal(images.length, 1);
   assert.equal(images[0].alt, "");
+});
+
+test("extractImages preserves balanced parens inside the image src", () => {
+  const images = extractImages(
+    "![pic](https://en.wikipedia.org/wiki/File:Pic_(test).png)",
+  );
+  assert.equal(images.length, 1);
+  assert.equal(images[0].src, "https://en.wikipedia.org/wiki/File:Pic_(test).png");
+  assert.equal(images[0].alt, "pic");
 });
 
 // --- findIssues: anchors --------------------------------------------------
@@ -136,6 +199,24 @@ test("findIssues flags GitHub-style duplicate when a stripped heading collides",
   assert.match(dupes[0].message, /setup-1/);
 });
 
+test("findIssues reports the correct line number for a duplicate heading", () => {
+  // Regression: extractHeadings previously did not capture the match's
+  // character offset, so findIssues always reported line 1 for duplicate
+  // headings even when they appeared on a later line. The reporter now
+  // walks to the heading's source offset, so each duplicate gets its own
+  // line.
+  const src = ["# Top", "", "# Top", "", "# Top"].join("\n");
+  const issues = findIssues(src);
+  const dupes = issues
+    .filter((i) => i.kind === "duplicate-heading")
+    .sort((a, b) => a.line - b.line);
+  assert.equal(dupes.length, 2);
+  assert.equal(dupes[0].line, 3);
+  assert.equal(dupes[1].line, 5);
+  // And the first heading on line 1 must NOT be reported.
+  assert.equal(dupes.some((d) => d.line === 1), false);
+});
+
 // --- findIssues: missing alt text ---------------------------------------
 
 test("findIssues flags images whose alt text is literally missing", () => {
@@ -191,6 +272,16 @@ test("findIssues returns no issues for a clean document", () => {
   assert.equal(findIssues(src).length, 0);
 });
 
+test("extractHeadings strips links whose URLs contain balanced parens", () => {
+  // The slug must reflect only the link text — the URL (with its parens)
+  // should not appear in the slug. This guards HEADING_LINK_STRIP_RE.
+  const headings = extractHeadings(
+    "# See [Wikipedia](https://en.wikipedia.org/wiki/Foo_(bar))\n",
+  );
+  assert.equal(headings.length, 1);
+  assert.equal(headings[0].slug, "see-wikipedia");
+});
+
 // --- lineOf -------------------------------------------------------------
 
 test("lineOf returns 1 for offset 0", () => {
@@ -202,4 +293,90 @@ test("lineOf increments at every newline", () => {
   assert.equal(lineOf(src, 0), 1);
   assert.equal(lineOf(src, 4), 2);
   assert.equal(lineOf(src, 8), 3);
+});
+
+// --- fenced code blocks -------------------------------------------------
+
+test("fenced code block content is not treated as headings or anchor targets", () => {
+  // Without fence skipping, the inner # heading and link would either be
+  // parsed as real headings (false-positive collisions) or flag the
+  // [link](#inner) as broken.
+  const src = [
+    "# Real Heading",
+    "",
+    "```bash",
+    "# Fake Heading In Code",
+    "[link](#inner)",
+    "```",
+    "",
+  ].join("\n");
+  assert.equal(findIssues(src).length, 0);
+});
+
+test("fenced block links are skipped, but real links outside the fence are still checked", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "```",
+    "[in-fence](#not-a-heading)",
+    "```",
+    "",
+    "[real-but-broken](#also-not-a-heading)",
+    "",
+  ].join("\n");
+  const issues = findIssues(src);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].kind, "broken-anchor");
+  assert.match(issues[0].message, /#also-not-a-heading/);
+});
+
+test("tilde fence markers (~~~) are also recognized as code fences", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "~~~",
+    "# Tilde Fence Heading",
+    "[link](#inner)",
+    "~~~",
+    "",
+  ].join("\n");
+  assert.equal(findIssues(src).length, 0);
+});
+
+test("unclosed fence does not swallow the rest of the document", () => {
+  // If the closing fence is missing we should not blank the trailing
+  // content — real broken links past the unclosed fence must still be
+  // reported.
+  const src = [
+    "# Real Heading",
+    "",
+    "```",
+    "[in-unclosed-fence](#inner)",
+    "[real-but-broken](#also-missing)",
+  ].join("\n");
+  const issues = findIssues(src);
+  // Expect the real broken link to be caught. The in-fence link may or
+  // may not be reported depending on policy, but the post-fence broken
+  // link must always be reported.
+  const real = issues.find((i) => /#also-missing/.test(i.message));
+  assert.ok(real, "post-fence broken link should be reported");
+});
+
+test("fence-masked source preserves character offsets for line number reporting", () => {
+  // The reported line for the real broken link should match the line
+  // number in the original source, not the masked one (they're identical
+  // because we only blank characters, not remove them).
+  const src = [
+    "# Real Heading",
+    "",
+    "```",
+    "[in-fence](#inner)",
+    "```",
+    "",
+    "line 7 has the real link: [broken](#missing-heading)",
+    "",
+  ].join("\n");
+  const issues = findIssues(src);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].line, 7);
 });
