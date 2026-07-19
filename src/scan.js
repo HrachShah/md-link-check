@@ -37,6 +37,12 @@ const SETEXT_HEADING_RE = /^([ \t]{0,3})(?<text>\S.*)\n[ \t]{0,3}(?<uline>={1,}|
 // URL.
 const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\(((?:[^()\s]|\([^()]*\))*)(?:\s+"([^"]*)")?\)/g;
 
+// Explicit reference links like `[text][ref]` and shortcut references like
+// `[text]` when a matching `[text]: ...` definition exists.
+const REFERENCE_LINK_RE = /(?<!\!)\[([^\]]+)\]\[([^\]]+)\]/g;
+const SHORT_REF_RE = /\[([^\]]+)\](?!\s*[\(\[:])/g;
+const REFERENCE_DEF_RE = /^\s*\[([^\]]+)\]:\s*(\S+)/gm;
+
 // Images:  ![alt](src)  — same balanced-paren shape as INLINE_LINK_RE so
 // image URLs that contain parens (e.g. Wikimedia Commons file URLs) are
 // preserved verbatim instead of being truncated at the first ')'.
@@ -159,6 +165,38 @@ function extractInlineLinks(source) {
   return out;
 }
 
+function extractReferenceDefinitions(source) {
+  const defs = new Map();
+  REFERENCE_DEF_RE.lastIndex = 0;
+  let m;
+  while ((m = REFERENCE_DEF_RE.exec(source)) !== null) {
+    defs.set(m[1].trim().toLowerCase(), m[2].trim());
+  }
+  return defs;
+}
+
+function extractReferenceLinks(source, defs) {
+  const out = [];
+  REFERENCE_LINK_RE.lastIndex = 0;
+  let m;
+  while ((m = REFERENCE_LINK_RE.exec(source)) !== null) {
+    const href = defs.get(m[2].trim().toLowerCase());
+    if (href) out.push({ text: m[1], href, index: m.index });
+  }
+  return out;
+}
+
+function extractShortRefLinks(source, defs) {
+  const out = [];
+  SHORT_REF_RE.lastIndex = 0;
+  let m;
+  while ((m = SHORT_REF_RE.exec(source)) !== null) {
+    const href = defs.get(m[1].trim().toLowerCase());
+    if (href) out.push({ text: m[1], href, index: m.index });
+  }
+  return out;
+}
+
 function extractImages(source) {
   const out = [];
   IMAGE_RE.lastIndex = 0;
@@ -183,6 +221,7 @@ function findIssues(source, path = "<input>") {
   // any matches we DO find outside fences.
   const masked = stripFencedCodeBlocks(source);
   const headings = extractHeadings(masked);
+  const referenceDefinitions = extractReferenceDefinitions(masked);
 
   // Assign each heading a deduplicated slug, the way GitHub renders them.
   const seen = new Map();
@@ -210,8 +249,12 @@ function findIssues(source, path = "<input>") {
   const validSlugs = new Set(headingSlugs.values());
 
   // Now check every anchor link against the set of valid slugs.
-  const inlineLinks = extractInlineLinks(masked);
-  for (const link of inlineLinks) {
+  const anchorLinks = [
+    ...extractInlineLinks(masked),
+    ...extractReferenceLinks(masked, referenceDefinitions),
+    ...extractShortRefLinks(masked, referenceDefinitions),
+  ];
+  for (const link of anchorLinks) {
     if (!link.href.startsWith("#")) continue;
     const target = link.href.slice(1).toLowerCase();
     if (target === "") continue; // "[](#)" — a placeholder, skip
