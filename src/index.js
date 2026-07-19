@@ -28,6 +28,7 @@ async function collectFiles(target) {
   const st = await stat(abs);
   if (st.isDirectory()) {
     const entries = await readdir(abs, { withFileTypes: true });
+    entries.sort((a, b) => a.name.localeCompare(b.name));
     const out = [];
     for (const e of entries) {
       const child = join(abs, e.name);
@@ -80,6 +81,7 @@ async function main(argv) {
 
   let totalIssues = 0;
   let totalFiles = 0;
+  let readErrors = 0;
   for (const target of argv) {
     let files;
     try {
@@ -91,6 +93,7 @@ async function main(argv) {
     if (files.length === 0) {
       if (target !== "-") {
         process.stderr.write(`md-link-check: no markdown files under ${target}\n`);
+        readErrors += 1;
       }
       continue;
     }
@@ -100,6 +103,7 @@ async function main(argv) {
         source = await f.read();
       } catch (err) {
         process.stderr.write(`md-link-check: cannot read ${f.path}: ${err.message}\n`);
+        readErrors += 1;
         continue;
       }
       const issues = findIssues(source, f.path);
@@ -112,6 +116,9 @@ async function main(argv) {
     }
   }
 
+  if (readErrors > 0) {
+    return 2;
+  }
   if (totalIssues === 0) {
     process.stdout.write(`md-link-check: clean across ${totalFiles} file(s)\n`);
     return 0;

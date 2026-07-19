@@ -90,3 +90,15 @@ test("CLI exits 2 when given a non-existent path", async () => {
   assert.equal(code, 2);
   assert.match(err, /cannot read/);
 });
+
+test("CLI exits 2 when a directory contains no Markdown files", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mdlc-"));
+  try {
+    await writeFile(join(dir, "notes.txt"), "plain text");
+    const { code, err } = await runCli([dir]);
+    assert.equal(code, 2);
+    assert.match(err, /no markdown files/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
