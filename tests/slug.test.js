@@ -28,6 +28,11 @@ test("collapses surrounding hyphens around dropped punctuation", () => {
   assert.equal(slugify("!!!foo!!!"), "foo");
 });
 
+test("normalizes repeated and surrounding hyphens", () => {
+  assert.equal(slugify("---foo---"), "foo");
+  assert.equal(slugify("foo---bar"), "foo-bar");
+});
+
 test("returns empty string for empty input", () => {
   assert.equal(slugify(""), "");
 });
