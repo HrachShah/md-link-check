@@ -155,12 +155,18 @@ function extractHeadings(source) {
   return out;
 }
 
+function unwrapAngleDestination(destination) {
+  return destination.startsWith("<") && destination.endsWith(">")
+    ? destination.slice(1, -1)
+    : destination;
+}
+
 function extractInlineLinks(source) {
   const out = [];
   INLINE_LINK_RE.lastIndex = 0;
   let m;
   while ((m = INLINE_LINK_RE.exec(source)) !== null) {
-    out.push({ text: m[1], href: m[2], index: m.index });
+    out.push({ text: m[1], href: unwrapAngleDestination(m[2]), index: m.index });
   }
   return out;
 }

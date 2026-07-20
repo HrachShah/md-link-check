@@ -88,6 +88,12 @@ test("extractInlineLinks captures the link's character offset", () => {
   assert.equal(src.slice(links[0].index, links[0].index + 6), "[x](y)");
 });
 
+test("extractInlineLinks unwraps angle-bracket destinations", () => {
+  const links = extractInlineLinks("[jump](<#somewhere>)");
+  assert.equal(links.length, 1);
+  assert.equal(links[0].href, "#somewhere");
+});
+
 test("extractInlineLinks keeps anchor-only hrefs", () => {
   const links = extractInlineLinks("[jump](#somewhere)");
   assert.equal(links.length, 1);
@@ -152,6 +158,11 @@ test("findIssues flags an anchor that has no matching heading", () => {
   const broken = issues.filter((i) => i.kind === "broken-anchor");
   assert.equal(broken.length, 1);
   assert.match(broken[0].message, /#nope/);
+});
+
+test("findIssues accepts angle-bracket anchor destinations", () => {
+  const src = "# Real Heading\n\ngo to [real](<#real-heading>)\n";
+  assert.equal(findIssues(src).filter((i) => i.kind === "broken-anchor").length, 0);
 });
 
 test("findIssues accepts a valid anchor link", () => {
