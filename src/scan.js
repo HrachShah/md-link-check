@@ -41,7 +41,7 @@ const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\(((?:[^()\s]|\([^()]*\))*)(?:\s+"([^
 // `[text]` when a matching `[text]: ...` definition exists.
 const REFERENCE_LINK_RE = /(?<!\!)\[([^\]]+)\]\[([^\]]+)\]/g;
 const SHORT_REF_RE = /\[([^\]]+)\](?!\s*[\(\[:])/g;
-const REFERENCE_DEF_RE = /^\s*\[([^\]]+)\]:\s*(\S+)/gm;
+const REFERENCE_DEF_RE = /^\s*\[([^\]]+)\]:\s*(<[^>\n]*>|\S+)/gm;
 
 // Images:  ![alt](src)  — same balanced-paren shape as INLINE_LINK_RE so
 // image URLs that contain parens (e.g. Wikimedia Commons file URLs) are
@@ -170,7 +170,11 @@ function extractReferenceDefinitions(source) {
   REFERENCE_DEF_RE.lastIndex = 0;
   let m;
   while ((m = REFERENCE_DEF_RE.exec(source)) !== null) {
-    defs.set(m[1].trim().toLowerCase(), m[2].trim());
+    const destination = m[2].trim();
+    const href = destination.startsWith("<") && destination.endsWith(">")
+      ? destination.slice(1, -1)
+      : destination;
+    defs.set(m[1].trim().toLowerCase(), href);
   }
   return defs;
 }

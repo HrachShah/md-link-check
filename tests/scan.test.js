@@ -185,6 +185,17 @@ test("findIssues flags broken reference anchors", () => {
   assert.match(broken[0].message, /#missing/);
 });
 
+test("findIssues unwraps angle-bracket reference destinations", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "[jump][ref]",
+    "",
+    "[ref]: <#real-heading>",
+  ].join("\n");
+  assert.equal(findIssues(src).filter((i) => i.kind === "broken-anchor").length, 0);
+});
+
 test("findIssues is case-insensitive on anchor matching (GitHub renders lowercased)", () => {
   const src = "# Real Heading\n\ngo to [r](#Real-Heading)\n";
   const issues = findIssues(src);
