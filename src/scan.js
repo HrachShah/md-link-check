@@ -52,8 +52,6 @@ const IMAGE_RE = /!\[([^\]]*)\]\(((?:[^()\s]|\([^()]*\))*)(?:\s+"([^"]*)")?\)/g;
 // after the opening fence). Used to mask fence contents with spaces so
 // headings/links/images inside fences are ignored by the extractors while
 // their source offsets stay intact.
-const FENCE_OPEN_RE = /^([`~]{3,})[^`~\n]*$/m;
-
 // Headings have content between [start] markers that may include link
 // targets. Strip them before slugging, so '# See [foo](bar)' produces
 // 'see-foo' rather than 'see-foobar'. Mirrors the balanced-paren shape
