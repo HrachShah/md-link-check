@@ -84,7 +84,7 @@ function stripFencedCodeBlocks(source) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (openMarker === null) {
-      const m = /^\s*([`~]{3,})[^`~\n]*$/.exec(line);
+      const m = /^\s*(`{3,}|~{3,})[^`~\n]*$/.exec(line);
       if (!m) continue;
       const marker = m[1];
       openMarker = { char: marker[0], length: marker.length, startLine: i };

@@ -152,6 +152,12 @@ test("extractImages preserves balanced parens inside the image src", () => {
 
 // --- findIssues: anchors --------------------------------------------------
 
+test("does not treat mixed backtick and tilde runs as a code fence", () => {
+  const src = "```~~~\n# Real Heading\n```~~~\n\ngo to [real](#real-heading)\n";
+  assert.equal(findIssues(src).filter((i) => i.kind === "broken-anchor").length, 0);
+});
+
+
 test("findIssues flags an anchor that has no matching heading", () => {
   const src = "# Real Heading\n\ngo to [missing](#nope)\n";
   const issues = findIssues(src);
