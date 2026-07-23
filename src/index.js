@@ -80,6 +80,7 @@ async function main(argv) {
 
   let totalIssues = 0;
   let totalFiles = 0;
+  let readFailures = 0;
   for (const target of argv) {
     let files;
     try {
@@ -100,6 +101,7 @@ async function main(argv) {
         source = await f.read();
       } catch (err) {
         process.stderr.write(`md-link-check: cannot read ${f.path}: ${err.message}\n`);
+        readFailures += 1;
         continue;
       }
       const issues = findIssues(source, f.path);
@@ -110,6 +112,13 @@ async function main(argv) {
       }
       totalIssues += issues.length;
     }
+  }
+
+  if (readFailures > 0) {
+    process.stderr.write(
+      `md-link-check: ${readFailures} file(s) could not be read\n`,
+    );
+    return 2;
   }
 
   if (totalIssues === 0) {
