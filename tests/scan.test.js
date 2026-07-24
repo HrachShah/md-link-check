@@ -15,9 +15,9 @@ test("extractHeadings returns level, text, and slug for each heading", () => {
   const src = "# Top\n\n## A Subsection\n\n### Deep heading here\n";
   const headings = extractHeadings(src);
   assert.equal(headings.length, 3);
-  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top" });
-  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection" });
-  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here" });
+  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top", index: 0 });
+  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection", index: 7 });
+  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here", index: 24 });
 });
 
 test("extractHeadings strips link targets before slugging", () => {
@@ -110,6 +110,12 @@ test("findIssues ignores empty href anchors ('[](#)')", () => {
 });
 
 // --- findIssues: duplicate headings -------------------------------------
+
+test("findIssues reports the duplicate heading line", () => {
+  const src = "# Setup\n\ntext\n\n## Setup\n";
+  const duplicate = findIssues(src).find((issue) => issue.kind === "duplicate-heading");
+  assert.equal(duplicate.line, 5);
+});
 
 test("findIssues flags duplicate heading slugs with a '-N' suffix", () => {
   const src = "# Setup\n\n## Setup\n";
