@@ -26,6 +26,7 @@ test("extractHeadings strips link targets before slugging", () => {
   assert.equal(headings.length, 1);
   assert.equal(headings[0].slug, "see-foo-too");
   assert.equal(headings[0].text, "See [foo](bar) too");
+  assert.equal(headings[0].index, 0);
 });
 
 test("extractHeadings strips inline code before slugging", () => {
