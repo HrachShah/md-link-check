@@ -90,3 +90,16 @@ test("CLI exits 2 when given a non-existent path", async () => {
   assert.equal(code, 2);
   assert.match(err, /cannot read/);
 });
+
+test("CLI exits 2 when a discovered Markdown file cannot be read", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mdlc-"));
+  try {
+    const { symlink } = await import("node:fs/promises");
+    await symlink(join(dir, "missing-source.md"), join(dir, "unreadable.md"));
+    const { code, err } = await runCli([dir]);
+    assert.equal(code, 2);
+    assert.match(err, /cannot read/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

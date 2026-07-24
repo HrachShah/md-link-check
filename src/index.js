@@ -100,7 +100,7 @@ async function main(argv) {
         source = await f.read();
       } catch (err) {
         process.stderr.write(`md-link-check: cannot read ${f.path}: ${err.message}\n`);
-        continue;
+        return 2;
       }
       const issues = findIssues(source, f.path);
       totalFiles += 1;
