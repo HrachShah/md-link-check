@@ -15,9 +15,14 @@ test("extractHeadings returns level, text, and slug for each heading", () => {
   const src = "# Top\n\n## A Subsection\n\n### Deep heading here\n";
   const headings = extractHeadings(src);
   assert.equal(headings.length, 3);
-  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top" });
-  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection" });
-  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here" });
+  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top", index: 0 });
+  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection", index: 7 });
+  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here", index: 24 });
+});
+
+test("extractHeadings records the source offset for each heading", () => {
+  const src = "intro\n\n## Section\n";
+  assert.equal(extractHeadings(src)[0].index, 7);
 });
 
 test("extractHeadings strips link targets before slugging", () => {
