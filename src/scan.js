@@ -83,9 +83,42 @@ function extractImages(source) {
 //
 // `path` is purely informational (used in the message text); the function
 // itself never touches the filesystem.
+function maskFencedCode(source) {
+  const lines = source.split("\n");
+  let inFence = false;
+  let fenceChar = "";
+  let fenceLength = 0;
+  const masked = [];
+
+  for (const line of lines) {
+    const opening = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (!inFence && opening) {
+      inFence = true;
+      fenceChar = opening[1][0];
+      fenceLength = opening[1].length;
+      masked.push(line.replace(/[^\t ]/g, " "));
+    } else if (
+      inFence &&
+      new RegExp(`^ {0,3}${fenceChar}{${fenceLength},}\\s*$`).test(line)
+    ) {
+      masked.push(line.replace(/[^\t ]/g, " "));
+      inFence = false;
+      fenceChar = "";
+      fenceLength = 0;
+    } else if (inFence) {
+      masked.push(line.replace(/[^\t ]/g, " "));
+    } else {
+      masked.push(line);
+    }
+  }
+
+  return masked.join("\n");
+}
+
 function findIssues(source, path = "<input>") {
   const issues = [];
-  const headings = extractHeadings(source);
+  const scanSource = maskFencedCode(source);
+  const headings = extractHeadings(scanSource);
 
   // Assign each heading a deduplicated slug, the way GitHub renders them.
   const seen = new Map();
@@ -113,7 +146,7 @@ function findIssues(source, path = "<input>") {
   const validSlugs = new Set(headingSlugs.values());
 
   // Now check every anchor link against the set of valid slugs.
-  const inlineLinks = extractInlineLinks(source);
+  const inlineLinks = extractInlineLinks(scanSource);
   for (const link of inlineLinks) {
     if (!link.href.startsWith("#")) continue;
     const target = link.href.slice(1).toLowerCase();
@@ -132,7 +165,7 @@ function findIssues(source, path = "<input>") {
   // deliberately-empty alt ("decorative image") is fine — we only flag
   // images whose alt text is literally missing from the source, i.e. the
   // '[]' form, not the '[decorative]' form.
-  const images = extractImages(source);
+  const images = extractImages(scanSource);
   for (const img of images) {
     // We can tell 'missing alt' from 'empty alt' by looking at the
     // original source: `![]()` has 0 chars between the brackets, `![alt]()`

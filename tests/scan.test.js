@@ -40,6 +40,34 @@ test("extractHeadings handles up to 6 levels of #", () => {
   assert.equal(headings.length, 6);
   assert.deepEqual(headings.map((h) => h.level), [1, 2, 3, 4, 5, 6]);
 });
+test("findIssues ignores headings, links, and images inside fenced code", () => {
+  const src = [
+    "# Real heading",
+    "",
+    "```markdown",
+    "# Example heading",
+    "[bad](#missing)",
+    "![](missing.png)",
+    "```",
+    "",
+    "[good](#real-heading)",
+  ].join("\n");
+  assert.equal(findIssues(src).length, 0);
+});
+
+test("findIssues ignores tilde fenced code and keeps source line numbers", () => {
+  const src = [
+    "# Real heading",
+    "",
+    "~~~",
+    "## Example heading",
+    "~~~",
+    "",
+    "[bad](#missing)",
+  ].join("\n");
+  const issue = findIssues(src).find((item) => item.kind === "broken-anchor");
+  assert.equal(issue.line, 7);
+});
 
 // --- extractInlineLinks --------------------------------------------------
 
