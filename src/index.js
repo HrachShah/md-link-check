@@ -32,6 +32,7 @@ async function collectFiles(target) {
     for (const e of entries) {
       const child = join(abs, e.name);
       if (e.isDirectory()) {
+        if (e.name === "node_modules" || e.name === ".git") continue;
         out.push(...(await collectFiles(child)));
       } else if (isMarkdown(e.name)) {
         out.push({ path: relative(process.cwd(), child), read: () => readFile(child, "utf8") });

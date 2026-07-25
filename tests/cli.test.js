@@ -71,6 +71,22 @@ test("CLI walks a directory recursively", async () => {
   }
 });
 
+test("CLI skips dependency and VCS directories during recursive scans", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mdlc-"));
+  try {
+    await import("node:fs/promises").then((m) => m.mkdir(join(dir, "node_modules")));
+    await import("node:fs/promises").then((m) => m.mkdir(join(dir, ".git")));
+    await writeFile(join(dir, "node_modules", "ignored.md"), "# Ignored\n\n[bad](#missing)\n");
+    await writeFile(join(dir, ".git", "ignored.md"), "# Ignored\n\n[bad](#missing)\n");
+    await writeFile(join(dir, "README.md"), "# Real\n\n[ok](#real)\n");
+    const { code, out } = await runCli([dir]);
+    assert.equal(code, 0);
+    assert.match(out, /clean across 1 file/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("CLI reads from stdin when given '-'", async () => {
   const { code, out } = await runCli(["-"], {
     stdin: "# Top\n\n[bad](#nope)\n",
