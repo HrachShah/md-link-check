@@ -60,6 +60,11 @@ test("findIssues ignores headings, links, and images inside fenced code", () => 
   assert.equal(findIssues(src).length, 0);
 });
 
+test("findIssues ignores links and images inside inline code", () => {
+  const src = "# Real\n\n`[bad](#missing) ![](missing.png)`\n";
+  assert.equal(findIssues(src).length, 0);
+});
+
 test("findIssues ignores tilde fenced code and keeps source line numbers", () => {
   const src = [
     "# Real heading",

@@ -115,10 +115,17 @@ function maskFencedCode(source) {
   return masked.join("\n");
 }
 
+function maskInlineCode(source) {
+  return source.replace(/(`+)(?:(?!\1)[\s\S])*?\1/g, (match) =>
+    match.replace(/[^\t ]/g, " "),
+  );
+}
+
 function findIssues(source, path = "<input>") {
   const issues = [];
   const scanSource = maskFencedCode(source);
   const headings = extractHeadings(scanSource);
+  const contentSource = maskInlineCode(scanSource);
 
   // Assign each heading a deduplicated slug, the way GitHub renders them.
   const seen = new Map();
@@ -146,7 +153,7 @@ function findIssues(source, path = "<input>") {
   const validSlugs = new Set(headingSlugs.values());
 
   // Now check every anchor link against the set of valid slugs.
-  const inlineLinks = extractInlineLinks(scanSource);
+  const inlineLinks = extractInlineLinks(contentSource);
   for (const link of inlineLinks) {
     if (!link.href.startsWith("#")) continue;
     const target = link.href.slice(1).toLowerCase();
@@ -165,7 +172,7 @@ function findIssues(source, path = "<input>") {
   // deliberately-empty alt ("decorative image") is fine — we only flag
   // images whose alt text is literally missing from the source, i.e. the
   // '[]' form, not the '[decorative]' form.
-  const images = extractImages(scanSource);
+  const images = extractImages(contentSource);
   for (const img of images) {
     // We can tell 'missing alt' from 'empty alt' by looking at the
     // original source: `![]()` has 0 chars between the brackets, `![alt]()`
