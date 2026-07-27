@@ -28,6 +28,7 @@ async function collectFiles(target) {
   const st = await stat(abs);
   if (st.isDirectory()) {
     const entries = await readdir(abs, { withFileTypes: true });
+    entries.sort((a, b) => a.name.localeCompare(b.name));
     const out = [];
     for (const e of entries) {
       const child = join(abs, e.name);

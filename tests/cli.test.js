@@ -71,6 +71,19 @@ test("CLI walks a directory recursively", async () => {
   }
 });
 
+test("CLI reports recursive files in a stable path order", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mdlc-"));
+  try {
+    await writeFile(join(dir, "z.md"), "# Z\n\n[bad](#missing-z)\n");
+    await writeFile(join(dir, "a.md"), "# A\n\n[bad](#missing-a)\n");
+    const { code, out } = await runCli([dir]);
+    assert.equal(code, 1);
+    assert.ok(out.indexOf("a.md:3") < out.indexOf("z.md:3"));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("CLI skips dependency and VCS directories during recursive scans", async () => {
   const dir = await mkdtemp(join(tmpdir(), "mdlc-"));
   try {
