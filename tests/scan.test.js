@@ -4,6 +4,7 @@ import {
   slugify,
   extractHeadings,
   extractInlineLinks,
+  extractReferenceLinks,
   extractImages,
   findIssues,
   lineOf,
@@ -100,6 +101,23 @@ test("extractInlineLinks keeps anchor-only hrefs", () => {
   const links = extractInlineLinks("[jump](#somewhere)");
   assert.equal(links.length, 1);
   assert.equal(links[0].href, "#somewhere");
+});
+
+test("extractReferenceLinks captures full reference links", () => {
+  const links = extractReferenceLinks("[jump][target]");
+  assert.deepEqual(links, [{ text: "jump", label: "target", index: 0 }]);
+});
+
+test("findIssues checks anchor targets from reference definitions", () => {
+  const src = "# Real heading\n\n[jump][target]\n\n[target]: #missing\n";
+  const broken = findIssues(src).filter((item) => item.kind === "broken-anchor");
+  assert.equal(broken.length, 1);
+  assert.equal(broken[0].line, 3);
+});
+
+test("findIssues accepts valid reference anchor definitions", () => {
+  const src = "# Real heading\n\n[jump][TARGET]\n\n[target]: #real-heading\n";
+  assert.equal(findIssues(src).filter((item) => item.kind === "broken-anchor").length, 0);
 });
 
 // --- extractImages -------------------------------------------------------

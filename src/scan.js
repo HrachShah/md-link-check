@@ -19,6 +19,8 @@ const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
 
 // Bare reference link: [text] not followed by ( or [
 const SHORT_REF_RE = /\[([^\]]+)\](?!\s*[\(\[])/g;
+const REFERENCE_LINK_RE = /(?<!\!)\[([^\]]*)\]\[([^\]]*)\]/g;
+const LINK_DEFINITION_RE = /^ {0,3}\[([^\]]+)\]:\s*(\S+)/gm;
 
 // Images:  ![alt](src)
 const IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
@@ -66,6 +68,26 @@ function extractShortRefLinks(source) {
     out.push({ text: m[1], index: m.index });
   }
   return out;
+}
+
+function extractReferenceLinks(source) {
+  const out = [];
+  REFERENCE_LINK_RE.lastIndex = 0;
+  let m;
+  while ((m = REFERENCE_LINK_RE.exec(source)) !== null) {
+    out.push({ text: m[1], label: m[2] || m[1], index: m.index });
+  }
+  return out;
+}
+
+function extractLinkDefinitions(source) {
+  const definitions = new Map();
+  LINK_DEFINITION_RE.lastIndex = 0;
+  let m;
+  while ((m = LINK_DEFINITION_RE.exec(source)) !== null) {
+    definitions.set(m[1].trim().replace(/\s+/g, " ").toLowerCase(), m[2]);
+  }
+  return definitions;
 }
 
 function extractImages(source) {
@@ -168,6 +190,21 @@ function findIssues(source, path = "<input>") {
     }
   }
 
+  const definitions = extractLinkDefinitions(contentSource);
+  const referenceLinks = extractReferenceLinks(contentSource);
+  for (const link of referenceLinks) {
+    const href = definitions.get(link.label.trim().replace(/\s+/g, " ").toLowerCase());
+    if (!href?.startsWith("#")) continue;
+    const target = href.slice(1).toLowerCase();
+    if (target === "" || validSlugs.has(target)) continue;
+    issues.push({
+      kind: "broken-anchor",
+      line: lineOf(source, link.index),
+      path,
+      message: `anchor link "#${target}" does not match any heading in this file`,
+    });
+  }
+
   // Check images: empty alt is a real accessibility issue, but a
   // deliberately-empty alt ("decorative image") is fine — we only flag
   // images whose alt text is literally missing from the source, i.e. the
@@ -216,6 +253,7 @@ export {
   slugify,
   extractHeadings,
   extractInlineLinks,
+  extractReferenceLinks,
   extractImages,
   findIssues,
   lineOf,
