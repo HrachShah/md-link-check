@@ -95,7 +95,7 @@ function stripFencedCodeBlocks(source) {
     } else {
       const char = openMarker.char === "`" ? "`" : "~";
       const m = new RegExp(
-        `^[ \\t]{0,3}\\${char}{${openMarker.length},}[ \\t]*$`,
+        `^[ \\t]{0,3}\\${char}{${openMarker.length},}[ \\t]*\\r?$`,
       ).exec(line);
       if (m) {
         // Blank the line that closes the fence.

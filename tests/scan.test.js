@@ -383,6 +383,14 @@ test("fenced block links are skipped, but real links outside the fence are still
   assert.match(issues[0].message, /#also-not-a-heading/);
 });
 
+test("fenced code blocks with CRLF line endings are ignored", () => {
+  const src = "# Real Heading\r\n\r\n```\r\n# Hidden Heading\r\n[hidden](#not-a-heading)\r\n```\r\n\r\n[real](#not-a-heading)\r\n";
+  const issues = findIssues(src);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].kind, "broken-anchor");
+  assert.equal(issues[0].line, 8);
+});
+
 test("tilde fence markers (~~~) are also recognized as code fences", () => {
   const src = [
     "# Real Heading",
