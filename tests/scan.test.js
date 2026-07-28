@@ -433,3 +433,22 @@ test("fence-masked source preserves character offsets for line number reporting"
   assert.equal(issues.length, 1);
   assert.equal(issues[0].line, 7);
 });
+
+test("indented fences only accept up to three leading spaces", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "   ```",
+    "# Hidden Heading",
+    "[hidden](#hidden-heading)",
+    "   ```",
+    "",
+    "    ```",
+    "# Visible Heading",
+    "[broken](#not-a-heading)",
+    "    ```",
+  ].join("\n");
+  const issues = findIssues(src);
+  assert.equal(issues.filter((issue) => issue.kind === "broken-anchor").length, 1);
+  assert.match(issues[0].message, /#not-a-heading/);
+});

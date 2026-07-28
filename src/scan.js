@@ -84,7 +84,7 @@ function stripFencedCodeBlocks(source) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (openMarker === null) {
-      const m = /^\s*(`{3,}|~{3,})[^`~\n]*$/.exec(line);
+      const m = /^[ \t]{0,3}(`{3,}|~{3,})[^`~\n]*$/.exec(line);
       if (!m) continue;
       const marker = m[1];
       openMarker = { char: marker[0], length: marker.length, startLine: i };
@@ -95,7 +95,7 @@ function stripFencedCodeBlocks(source) {
     } else {
       const char = openMarker.char === "`" ? "`" : "~";
       const m = new RegExp(
-        `^\\s*\\${char}{${openMarker.length},}[ \\t]*$`,
+        `^[ \\t]{0,3}\\${char}{${openMarker.length},}[ \\t]*$`,
       ).exec(line);
       if (m) {
         // Blank the line that closes the fence.
