@@ -18,7 +18,7 @@ const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/gm;
 const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
 
 // Bare reference link: [text] not followed by ( or [
-const SHORT_REF_RE = /\[([^\]]+)\](?!\s*[\(\[])/g;
+const SHORT_REF_RE = /(?<!\])\[([^\]]+)\](?![ \t]*[\(\[:])/g;
 const REFERENCE_LINK_RE = /(?<!\!)\[([^\]]*)\]\[([^\]]*)\]/g;
 const LINK_DEFINITION_RE = /^ {0,3}\[([^\]]+)\]:\s*(\S+)/gm;
 
@@ -192,8 +192,22 @@ function findIssues(source, path = "<input>") {
 
   const definitions = extractLinkDefinitions(contentSource);
   const referenceLinks = extractReferenceLinks(contentSource);
+  const shortRefLinks = extractShortRefLinks(contentSource);
   for (const link of referenceLinks) {
     const href = definitions.get(link.label.trim().replace(/\s+/g, " ").toLowerCase());
+    if (!href?.startsWith("#")) continue;
+    const target = href.slice(1).toLowerCase();
+    if (target === "" || validSlugs.has(target)) continue;
+    issues.push({
+      kind: "broken-anchor",
+      line: lineOf(source, link.index),
+      path,
+      message: `anchor link "#${target}" does not match any heading in this file`,
+    });
+  }
+
+  for (const link of shortRefLinks) {
+    const href = definitions.get(link.text.trim().replace(/\s+/g, " ").toLowerCase());
     if (!href?.startsWith("#")) continue;
     const target = href.slice(1).toLowerCase();
     if (target === "" || validSlugs.has(target)) continue;
@@ -254,6 +268,7 @@ export {
   extractHeadings,
   extractInlineLinks,
   extractReferenceLinks,
+  extractShortRefLinks,
   extractImages,
   findIssues,
   lineOf,

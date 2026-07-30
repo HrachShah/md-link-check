@@ -120,6 +120,18 @@ test("findIssues accepts valid reference anchor definitions", () => {
   assert.equal(findIssues(src).filter((item) => item.kind === "broken-anchor").length, 0);
 });
 
+test("findIssues checks shortcut reference definitions", () => {
+  const src = "# Real heading\n\n[jump]\n\n[jump]: #missing\n";
+  const broken = findIssues(src).filter((item) => item.kind === "broken-anchor");
+  assert.equal(broken.length, 1);
+  assert.equal(broken[0].line, 3);
+});
+
+test("findIssues accepts valid shortcut reference definitions", () => {
+  const src = "# Real heading\n\n[jump]\n\n[jump]: #real-heading\n";
+  assert.equal(findIssues(src).filter((item) => item.kind === "broken-anchor").length, 0);
+});
+
 // --- extractImages -------------------------------------------------------
 
 test("extractImages finds images with alt text", () => {
