@@ -22,7 +22,7 @@ const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/gm;
 // block-level construct (a paragraph line is fine). Setext headings
 // coexist with ATX headings and produce the same {level, text, slug, index}
 // shape from extractHeadings.
-const SETEXT_HEADING_RE = /^([ \t]{0,3})(?<text>\S.*)\n[ \t]{0,3}(?<uline>={1,}|\-{1,})[ \t]*(?:\n|$)/gm;
+const SETEXT_HEADING_RE = /^([ \t]{0,3})(?<text>\S.*?)(?:\r?\n)[ \t]{0,3}(?<uline>={1,}|\-{1,})[ \t]*(?:\r?\n|$)/gm;
 
 // Markdown links:  [text](href)  (skip images — those start with '!')
 // We also support reference-style links:  [text][ref]  and  [text]

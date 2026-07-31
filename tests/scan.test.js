@@ -460,3 +460,8 @@ test("indented fences only accept up to three leading spaces", () => {
   assert.equal(issues.filter((issue) => issue.kind === "broken-anchor").length, 1);
   assert.match(issues[0].message, /#not-a-heading/);
 });
+
+test("extractHeadings recognises setext headings with CRLF line endings", () => {
+  const headings = extractHeadings("Title\r\n=====\r\n\r\n## Section\r\n");
+  assert.deepEqual(headings.map((heading) => heading.slug), ["title", "section"]);
+});
