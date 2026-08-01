@@ -62,6 +62,11 @@ test("extractHeadings returns setext and ATX headings in document order", () => 
   );
 });
 
+test("extractHeadings does not treat an ATX heading as setext text", () => {
+  const headings = extractHeadings("# ATX heading\n-----\n");
+  assert.deepEqual(headings.map((heading) => heading.slug), ["atx-heading"]);
+});
+
 test("extractHeadings does not mistake a paragraph underline for a setext heading", () => {
   // A blank line between the text and the underline invalidates the
   // setext form per CommonMark §4.3, so the dash line should not be

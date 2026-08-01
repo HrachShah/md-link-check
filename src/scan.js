@@ -131,6 +131,7 @@ function extractHeadings(source) {
   let sm;
   while ((sm = SETEXT_HEADING_RE.exec(source)) !== null) {
     const raw = sm.groups.text;
+    if (/^[ \t]{0,3}#{1,6}(?:\s|$)/.test(raw)) continue;
     const level = sm.groups.uline.startsWith("=") ? 1 : 2;
     const stripped = raw
       .replace(HEADING_LINK_STRIP_RE, "$1")
