@@ -179,7 +179,8 @@ function extractReferenceDefinitions(source) {
     const href = destination.startsWith("<") && destination.endsWith(">")
       ? destination.slice(1, -1)
       : destination;
-    defs.set(m[1].trim().toLowerCase(), href);
+    const key = m[1].trim().toLowerCase();
+    if (!defs.has(key)) defs.set(key, href);
   }
   return defs;
 }

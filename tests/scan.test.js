@@ -194,6 +194,18 @@ test("findIssues checks explicit and shortcut reference anchors", () => {
   assert.equal(findIssues(src).filter((i) => i.kind === "broken-anchor").length, 0);
 });
 
+test("findIssues uses the first duplicate reference definition", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "[jump][ref]",
+    "",
+    "[ref]: #real-heading",
+    "[REF]: #missing",
+  ].join("\n");
+  assert.equal(findIssues(src).filter((i) => i.kind === "broken-anchor").length, 0);
+});
+
 test("findIssues flags broken reference anchors", () => {
   const src = [
     "# Real Heading",
