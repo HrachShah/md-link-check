@@ -81,6 +81,21 @@ test("extractImages keeps empty alt string when brackets are empty", () => {
   assert.equal(images[0].alt, "");
 });
 
+test("findIssues ignores Markdown syntax inside fenced code", () => {
+  const src = [
+    "```md",
+    "# Not a heading",
+    "[missing](#not-an-anchor)",
+    "![](not-an-image.png)",
+    "```",
+    "",
+    "# Real heading",
+    "[real](#real-heading)",
+  ].join("\n");
+  const issues = findIssues(src);
+  assert.equal(issues.length, 0);
+});
+
 // --- findIssues: anchors --------------------------------------------------
 
 test("findIssues flags an anchor that has no matching heading", () => {

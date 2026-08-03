@@ -35,9 +35,10 @@ const HEADING_CODE_STRIP_RE = /`+/g;
 
 function extractHeadings(source) {
   const out = [];
+  const scanSource = maskFencedCode(source);
   HEADING_RE.lastIndex = 0;
   let m;
-  while ((m = HEADING_RE.exec(source)) !== null) {
+  while ((m = HEADING_RE.exec(scanSource)) !== null) {
     const level = m[1].length;
     const raw = m[2];
     const stripped = raw
@@ -50,9 +51,10 @@ function extractHeadings(source) {
 
 function extractInlineLinks(source) {
   const out = [];
+  const scanSource = maskFencedCode(source);
   INLINE_LINK_RE.lastIndex = 0;
   let m;
-  while ((m = INLINE_LINK_RE.exec(source)) !== null) {
+  while ((m = INLINE_LINK_RE.exec(scanSource)) !== null) {
     out.push({ text: m[1], href: m[2], index: m.index });
   }
   return out;
@@ -70,9 +72,10 @@ function extractShortRefLinks(source) {
 
 function extractImages(source) {
   const out = [];
+  const scanSource = maskFencedCode(source);
   IMAGE_RE.lastIndex = 0;
   let m;
-  while ((m = IMAGE_RE.exec(source)) !== null) {
+  while ((m = IMAGE_RE.exec(scanSource)) !== null) {
     out.push({ alt: m[1], src: m[2], index: m.index });
   }
   return out;
@@ -161,6 +164,30 @@ function isAltTrulyMissing(source, matchIndex) {
   const close = source.indexOf("]", matchIndex + 2);
   if (close < 0) return false;
   return source[close - 1] === "[" && source[close] === "]";
+}
+
+function maskFencedCode(source) {
+  let inFence = false;
+  let fenceChar = "";
+  let fenceLength = 0;
+  return source.split("\n").map((line) => {
+    const match = line.match(/^\s*(`{3,}|~{3,})/);
+    if (!inFence && match) {
+      inFence = true;
+      fenceChar = match[1][0];
+      fenceLength = match[1].length;
+      return " ".repeat(line.length);
+    }
+    if (inFence) {
+      if (match && match[1][0] === fenceChar && match[1].length >= fenceLength) {
+        inFence = false;
+        fenceChar = "";
+        fenceLength = 0;
+      }
+      return " ".repeat(line.length);
+    }
+    return line;
+  }).join("\n");
 }
 
 // 1-indexed line number for a character offset.
