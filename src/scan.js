@@ -33,7 +33,7 @@ const HEADING_LINK_STRIP_RE = /!?\[([^\]]*)\]\([^)]*\)/g;
 // 'use-npm-install'. We drop only the backticks, NOT the inner text.
 const HEADING_CODE_STRIP_RE = /`+/g;
 
-function extractHeadings(source) {
+function extractHeadingRecords(source) {
   const out = [];
   const scanSource = maskFencedCode(source);
   HEADING_RE.lastIndex = 0;
@@ -44,9 +44,13 @@ function extractHeadings(source) {
     const stripped = raw
       .replace(HEADING_LINK_STRIP_RE, "$1")
       .replace(HEADING_CODE_STRIP_RE, "");
-    out.push({ level, text: raw, slug: slugify(stripped) });
+    out.push({ level, text: raw, slug: slugify(stripped), index: m.index });
   }
   return out;
+}
+
+function extractHeadings(source) {
+  return extractHeadingRecords(source).map(({ level, text, slug }) => ({ level, text, slug }));
 }
 
 function extractInlineLinks(source) {
@@ -88,7 +92,7 @@ function extractImages(source) {
 // itself never touches the filesystem.
 function findIssues(source, path = "<input>") {
   const issues = [];
-  const headings = extractHeadings(source);
+  const headings = extractHeadingRecords(source);
 
   // Assign each heading a deduplicated slug, the way GitHub renders them.
   const seen = new Map();
