@@ -15,18 +15,18 @@ const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/gm;
 
 // Markdown links:  [text](href)  (skip images — those start with '!')
 // We also support reference-style links:  [text][ref]  and  [text]
-const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
+const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\((?:<([^>\n]*)>|((?:[^()\s]|\([^()]*\))*))(?:\s+"([^"]*)")?\)/g;
 
 // Bare reference link: [text] not followed by ( or [
 const SHORT_REF_RE = /\[([^\]]+)\](?!\s*[\(\[])/g;
 
 // Images:  ![alt](src)
-const IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
+const IMAGE_RE = /!\[([^\]]*)\]\((?:<([^>\n]*)>|((?:[^()\s]|\([^()]*\))*))(?:\s+"([^"]*)")?\)/g;
 
 // Headings have content between [start] markers that may include link
 // targets. Strip them before slugging, so '# See [foo](bar)' produces
 // 'see-foo' rather than 'see-foobar'.
-const HEADING_LINK_STRIP_RE = /!?\[([^\]]*)\]\([^)]*\)/g;
+const HEADING_LINK_STRIP_RE = /!?\[([^\]]*)\]\((?:<[^>\n]*>|(?:[^()\s]|\([^()]*\))*)\)/g;
 
 // Strip inline code (single backticks) from heading text before slugging,
 // because GitHub does the same: '# Use `npm install`' becomes
@@ -53,7 +53,7 @@ function extractInlineLinks(source) {
   INLINE_LINK_RE.lastIndex = 0;
   let m;
   while ((m = INLINE_LINK_RE.exec(source)) !== null) {
-    out.push({ text: m[1], href: m[2], index: m.index });
+    out.push({ text: m[1], href: m[2] ?? m[3], index: m.index });
   }
   return out;
 }
@@ -73,7 +73,7 @@ function extractImages(source) {
   IMAGE_RE.lastIndex = 0;
   let m;
   while ((m = IMAGE_RE.exec(source)) !== null) {
-    out.push({ alt: m[1], src: m[2], index: m.index });
+    out.push({ alt: m[1], src: m[2] ?? m[3], index: m.index });
   }
   return out;
 }
