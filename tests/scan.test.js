@@ -58,6 +58,14 @@ test("extractInlineLinks captures the link's character offset", () => {
   assert.equal(src.slice(links[0].index, links[0].index + 6), "[x](y)");
 });
 
+test("extractInlineLinks accepts angle-bracket destinations with spaces", () => {
+  const links = extractInlineLinks(
+    "[release notes](<https://example.com/releases/June 2026>)",
+  );
+  assert.equal(links.length, 1);
+  assert.equal(links[0].href, "https://example.com/releases/June 2026");
+});
+
 test("extractInlineLinks keeps anchor-only hrefs", () => {
   const links = extractInlineLinks("[jump](#somewhere)");
   assert.equal(links.length, 1);
@@ -71,6 +79,12 @@ test("extractImages finds images with alt text", () => {
   assert.equal(images.length, 1);
   assert.equal(images[0].alt, "logo");
   assert.equal(images[0].src, "logo.png");
+});
+
+test("extractImages accepts angle-bracket sources with spaces", () => {
+  const images = extractImages("![release](<images/June 2026.png>)");
+  assert.equal(images.length, 1);
+  assert.equal(images[0].src, "images/June 2026.png");
 });
 
 test("extractImages keeps empty alt string when brackets are empty", () => {
