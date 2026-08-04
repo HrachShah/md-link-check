@@ -222,3 +222,32 @@ test("findIssues reports a broken collapsed reference link", () => {
   assert.equal(broken.length, 1);
   assert.equal(broken[0].line, 3);
 });
+
+test("findIssues ignores headings, links, references, and images inside fenced code", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "```markdown",
+    "# Fake Heading",
+    "[bad](#missing)",
+    "![](missing.png)",
+    "[bad]: #missing",
+    "```",
+    "",
+    "[good](#real-heading)",
+  ].join("\n");
+  assert.equal(findIssues(src).length, 0);
+});
+
+test("findIssues preserves line numbers after masking fenced code", () => {
+  const src = [
+    "```",
+    "# ignored",
+    "```",
+    "",
+    "[bad](#missing)",
+  ].join("\n");
+  const broken = findIssues(src).filter((i) => i.kind === "broken-anchor");
+  assert.equal(broken.length, 1);
+  assert.equal(broken[0].line, 5);
+});
