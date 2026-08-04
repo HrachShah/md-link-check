@@ -17,8 +17,11 @@ const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/gm;
 // We also support reference-style links:  [text][ref]  and  [text]
 const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
 
-// Bare reference link: [text] not followed by ( or [
-const SHORT_REF_RE = /\[([^\]]+)\](?!\s*[\(\[])/g;
+// Reference definitions map labels to destinations, so shortcut references
+// can be resolved without treating ordinary bracketed prose as a link.
+const REFERENCE_DEF_RE = /^\s*\[([^\]]+)\]:\s*(<[^>\n]*>|\S+)/gm;
+const REFERENCE_LINK_RE = /(?<!\!)\[([^\]]+)\]\[([^\]]+)\]/g;
+const SHORT_REF_RE = /(?<!\!)\[([^\]]+)\](?![ \t]*[\(\[:])/g;
 
 // Images:  ![alt](src)
 const IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
@@ -43,7 +46,7 @@ function extractHeadings(source) {
     const stripped = raw
       .replace(HEADING_LINK_STRIP_RE, "$1")
       .replace(HEADING_CODE_STRIP_RE, "");
-    out.push({ level, text: raw, slug: slugify(stripped) });
+    out.push({ level, text: raw, slug: slugify(stripped), index: m.index });
   }
   return out;
 }
@@ -58,12 +61,39 @@ function extractInlineLinks(source) {
   return out;
 }
 
-function extractShortRefLinks(source) {
+function extractReferenceDefinitions(source) {
+  const defs = new Map();
+  REFERENCE_DEF_RE.lastIndex = 0;
+  let m;
+  while ((m = REFERENCE_DEF_RE.exec(source)) !== null) {
+    const destination = m[2].trim();
+    const href = destination.startsWith("<") && destination.endsWith(">")
+      ? destination.slice(1, -1)
+      : destination;
+    const key = m[1].trim().toLowerCase();
+    if (!defs.has(key)) defs.set(key, href);
+  }
+  return defs;
+}
+
+function extractReferenceLinks(source, defs) {
+  const out = [];
+  REFERENCE_LINK_RE.lastIndex = 0;
+  let m;
+  while ((m = REFERENCE_LINK_RE.exec(source)) !== null) {
+    const href = defs.get(m[2].trim().toLowerCase());
+    if (href) out.push({ text: m[1], href, index: m.index });
+  }
+  return out;
+}
+
+function extractShortRefLinks(source, defs) {
   const out = [];
   SHORT_REF_RE.lastIndex = 0;
   let m;
   while ((m = SHORT_REF_RE.exec(source)) !== null) {
-    out.push({ text: m[1], index: m.index });
+    const href = defs.get(m[1].trim().toLowerCase());
+    if (href) out.push({ text: m[1], href, index: m.index });
   }
   return out;
 }
@@ -86,6 +116,7 @@ function extractImages(source) {
 function findIssues(source, path = "<input>") {
   const issues = [];
   const headings = extractHeadings(source);
+  const referenceDefinitions = extractReferenceDefinitions(source);
 
   // Assign each heading a deduplicated slug, the way GitHub renders them.
   const seen = new Map();
@@ -113,8 +144,12 @@ function findIssues(source, path = "<input>") {
   const validSlugs = new Set(headingSlugs.values());
 
   // Now check every anchor link against the set of valid slugs.
-  const inlineLinks = extractInlineLinks(source);
-  for (const link of inlineLinks) {
+  const anchorLinks = [
+    ...extractInlineLinks(source),
+    ...extractReferenceLinks(source, referenceDefinitions),
+    ...extractShortRefLinks(source, referenceDefinitions),
+  ];
+  for (const link of anchorLinks) {
     if (!link.href.startsWith("#")) continue;
     const target = link.href.slice(1).toLowerCase();
     if (target === "") continue; // "[](#)" — a placeholder, skip
@@ -176,6 +211,9 @@ export {
   slugify,
   extractHeadings,
   extractInlineLinks,
+  extractReferenceDefinitions,
+  extractReferenceLinks,
+  extractShortRefLinks,
   extractImages,
   findIssues,
   lineOf,

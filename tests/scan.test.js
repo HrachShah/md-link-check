@@ -15,9 +15,9 @@ test("extractHeadings returns level, text, and slug for each heading", () => {
   const src = "# Top\n\n## A Subsection\n\n### Deep heading here\n";
   const headings = extractHeadings(src);
   assert.equal(headings.length, 3);
-  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top" });
-  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection" });
-  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here" });
+  assert.deepEqual(headings[0], { level: 1, text: "Top", slug: "top", index: 0 });
+  assert.deepEqual(headings[1], { level: 2, text: "A Subsection", slug: "a-subsection", index: 7 });
+  assert.deepEqual(headings[2], { level: 3, text: "Deep heading here", slug: "deep-heading-here", index: 24 });
 });
 
 test("extractHeadings strips link targets before slugging", () => {
@@ -202,4 +202,23 @@ test("lineOf increments at every newline", () => {
   assert.equal(lineOf(src, 0), 1);
   assert.equal(lineOf(src, 4), 2);
   assert.equal(lineOf(src, 8), 3);
+});
+
+test("findIssues resolves collapsed reference links and ignores ordinary bracketed text", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "Read [the docs] and [missing] in this paragraph.",
+    "",
+    "[the docs]: #real-heading",
+  ].join("\n");
+  const broken = findIssues(src).filter((i) => i.kind === "broken-anchor");
+  assert.equal(broken.length, 0);
+});
+
+test("findIssues reports a broken collapsed reference link", () => {
+  const src = "# Real Heading\n\n[missing]\n\n[missing]: #not-a-heading\n";
+  const broken = findIssues(src).filter((i) => i.kind === "broken-anchor");
+  assert.equal(broken.length, 1);
+  assert.equal(broken[0].line, 3);
 });
