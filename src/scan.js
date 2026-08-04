@@ -113,10 +113,35 @@ function extractImages(source) {
 //
 // `path` is purely informational (used in the message text); the function
 // itself never touches the filesystem.
+function maskFencedCode(source) {
+  let inFence = false;
+  let fenceChar = "";
+  let fenceLength = 0;
+  return source.split("\n").map((line) => {
+    const match = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (!inFence && match) {
+      inFence = true;
+      fenceChar = match[1][0];
+      fenceLength = match[1].length;
+      return " ".repeat(line.length);
+    }
+    if (inFence) {
+      if (match && match[1][0] === fenceChar && match[1].length >= fenceLength) {
+        inFence = false;
+        fenceChar = "";
+        fenceLength = 0;
+      }
+      return " ".repeat(line.length);
+    }
+    return line;
+  }).join("\n");
+}
+
 function findIssues(source, path = "<input>") {
   const issues = [];
-  const headings = extractHeadings(source);
-  const referenceDefinitions = extractReferenceDefinitions(source);
+  const scanSource = maskFencedCode(source);
+  const headings = extractHeadings(scanSource);
+  const referenceDefinitions = extractReferenceDefinitions(scanSource);
 
   // Assign each heading a deduplicated slug, the way GitHub renders them.
   const seen = new Map();
@@ -145,9 +170,9 @@ function findIssues(source, path = "<input>") {
 
   // Now check every anchor link against the set of valid slugs.
   const anchorLinks = [
-    ...extractInlineLinks(source),
-    ...extractReferenceLinks(source, referenceDefinitions),
-    ...extractShortRefLinks(source, referenceDefinitions),
+    ...extractInlineLinks(scanSource),
+    ...extractReferenceLinks(scanSource, referenceDefinitions),
+    ...extractShortRefLinks(scanSource, referenceDefinitions),
   ];
   for (const link of anchorLinks) {
     if (!link.href.startsWith("#")) continue;
@@ -167,7 +192,7 @@ function findIssues(source, path = "<input>") {
   // deliberately-empty alt ("decorative image") is fine — we only flag
   // images whose alt text is literally missing from the source, i.e. the
   // '[]' form, not the '[decorative]' form.
-  const images = extractImages(source);
+  const images = extractImages(scanSource);
   for (const img of images) {
     // We can tell 'missing alt' from 'empty alt' by looking at the
     // original source: `![]()` has 0 chars between the brackets, `![alt]()`
@@ -215,6 +240,7 @@ export {
   extractReferenceLinks,
   extractShortRefLinks,
   extractImages,
+  maskFencedCode,
   findIssues,
   lineOf,
 };
