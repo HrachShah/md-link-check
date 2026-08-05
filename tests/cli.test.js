@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, rm, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -13,6 +13,8 @@ function runCli(args, opts = {}) {
     const child = spawn(process.execPath, [CLI, ...args], {
       stdio: ["pipe", "pipe", "pipe"],
       cwd: opts.cwd,
+      uid: opts.uid,
+      gid: opts.gid,
     });
     let out = "";
     let err = "";
@@ -89,4 +91,21 @@ test("CLI exits 2 when given a non-existent path", async () => {
   const { code, err } = await runCli(["/nonexistent/path/to/file.md"]);
   assert.equal(code, 2);
   assert.match(err, /cannot read/);
+});
+
+test("CLI exits 2 when a Markdown file cannot be read", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "mdlc-"));
+  const file = join(dir, "broken.md");
+  try {
+    await writeFile(file, "# Title\n");
+    await chmod(dir, 0o755);
+    await chmod(file, 0o000);
+    const { code, err } = await runCli([file], { uid: 65534, gid: 65534 });
+    assert.equal(code, 2);
+    assert.match(err, /cannot read/);
+    assert.match(err, /could not read 1 file/);
+  } finally {
+    await chmod(file, 0o644).catch(() => {});
+    await rm(dir, { recursive: true, force: true });
+  }
 });
