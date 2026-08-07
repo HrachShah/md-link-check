@@ -124,6 +124,18 @@ test("findIssues ignores empty href anchors ('[](#)')", () => {
   assert.equal(issues.filter((i) => i.kind === "broken-anchor").length, 0);
 });
 
+test("findIssues validates full reference-style anchor links", () => {
+  const src = "# Real Heading\n\n[go there][target]\n\n[target]: #real-heading\n";
+  assert.equal(findIssues(src).filter((i) => i.kind === "broken-anchor").length, 0);
+});
+
+test("findIssues flags broken reference-style anchor links", () => {
+  const src = "# Real Heading\n\n[go there][target]\n\n[target]: #missing\n";
+  const issues = findIssues(src).filter((i) => i.kind === "broken-anchor");
+  assert.equal(issues.length, 1);
+  assert.match(issues[0].message, /#missing/);
+});
+
 // --- findIssues: duplicate headings -------------------------------------
 
 test("findIssues flags duplicate heading slugs with a '-N' suffix", () => {

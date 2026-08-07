@@ -33,6 +33,8 @@ const HEADING_LINK_STRIP_RE = /!?\[([^\]]*)\]\([^)]*\)/g;
 // 'use-npm-install'. We drop only the backticks, NOT the inner text.
 const HEADING_CODE_STRIP_RE = /`+/g;
 
+const REF_DEF_RE = /^ {0,3}\[([^\]]+)\]:\s*(\S+)/gm;
+
 function extractHeadingRecords(source) {
   const out = [];
   const scanSource = maskFencedCode(source);
@@ -70,6 +72,16 @@ function extractShortRefLinks(source) {
   let m;
   while ((m = SHORT_REF_RE.exec(source)) !== null) {
     out.push({ text: m[1], index: m.index });
+  }
+  return out;
+}
+
+function extractReferenceDefinitions(source) {
+  const out = new Map();
+  REF_DEF_RE.lastIndex = 0;
+  let m;
+  while ((m = REF_DEF_RE.exec(source)) !== null) {
+    out.set(m[1].trim().toLowerCase(), { href: m[2], index: m.index });
   }
   return out;
 }
@@ -133,6 +145,20 @@ function findIssues(source, path = "<input>") {
         message: `anchor link "#${target}" does not match any heading in this file`,
       });
     }
+  }
+
+  const referenceDefinitions = extractReferenceDefinitions(source);
+  for (const link of extractShortRefLinks(source)) {
+    const definition = referenceDefinitions.get(link.text.trim().toLowerCase());
+    if (!definition || !definition.href.startsWith("#")) continue;
+    const target = definition.href.slice(1).toLowerCase();
+    if (target === "" || validSlugs.has(target)) continue;
+    issues.push({
+      kind: "broken-anchor",
+      line: lineOf(source, link.index),
+      path,
+      message: `anchor link "#${target}" does not match any heading in this file`,
+    });
   }
 
   // Check images: empty alt is a real accessibility issue, but a
