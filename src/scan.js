@@ -17,8 +17,11 @@ const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/gm;
 // We also support reference-style links:  [text][ref]  and  [text]
 const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
 
-// Bare reference link: [text] not followed by ( or [
-const SHORT_REF_RE = /\[([^\]]+)\](?!\s*[\(\[])/g;
+// Full reference link: [text][label]
+const FULL_REF_RE = /(?<!\!)\[([^\]]*)\]\s*\[([^\]]*)\]/g;
+
+// Shortcut reference link: [label] not followed by a destination or definition.
+const SHORT_REF_RE = /(?<!\!)\[([^\]]+)\](?!\s*[\(\[:])/g;
 
 // Images:  ![alt](src)
 const IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
@@ -66,11 +69,23 @@ function extractInlineLinks(source) {
   return out;
 }
 
+function extractFullRefLinks(source) {
+  const out = [];
+  const scanSource = maskFencedCode(source);
+  FULL_REF_RE.lastIndex = 0;
+  let m;
+  while ((m = FULL_REF_RE.exec(scanSource)) !== null) {
+    out.push({ text: m[1], label: m[2] || m[1], index: m.index });
+  }
+  return out;
+}
+
 function extractShortRefLinks(source) {
   const out = [];
+  const scanSource = maskFencedCode(source);
   SHORT_REF_RE.lastIndex = 0;
   let m;
-  while ((m = SHORT_REF_RE.exec(source)) !== null) {
+  while ((m = SHORT_REF_RE.exec(scanSource)) !== null) {
     out.push({ text: m[1], index: m.index });
   }
   return out;
@@ -78,9 +93,10 @@ function extractShortRefLinks(source) {
 
 function extractReferenceDefinitions(source) {
   const out = new Map();
+  const scanSource = maskFencedCode(source);
   REF_DEF_RE.lastIndex = 0;
   let m;
-  while ((m = REF_DEF_RE.exec(source)) !== null) {
+  while ((m = REF_DEF_RE.exec(scanSource)) !== null) {
     out.set(m[1].trim().toLowerCase(), { href: m[2], index: m.index });
   }
   return out;
@@ -148,8 +164,14 @@ function findIssues(source, path = "<input>") {
   }
 
   const referenceDefinitions = extractReferenceDefinitions(source);
-  for (const link of extractShortRefLinks(source)) {
-    const definition = referenceDefinitions.get(link.text.trim().toLowerCase());
+  const referenceLinks = [
+    ...extractFullRefLinks(source),
+    ...extractShortRefLinks(source),
+  ];
+  for (const link of referenceLinks) {
+    const definition = referenceDefinitions.get(
+      (link.label ?? link.text).trim().toLowerCase(),
+    );
     if (!definition || !definition.href.startsWith("#")) continue;
     const target = definition.href.slice(1).toLowerCase();
     if (target === "" || validSlugs.has(target)) continue;

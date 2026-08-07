@@ -231,3 +231,15 @@ test("lineOf increments at every newline", () => {
   assert.equal(lineOf(src, 4), 2);
   assert.equal(lineOf(src, 8), 3);
 });
+
+test("findIssues validates full reference links against their labels", () => {
+  const src = "# Real Heading\n\n[go there][target]\n\n[target]: #real-heading\n";
+  assert.equal(findIssues(src).filter((i) => i.kind === "broken-anchor").length, 0);
+});
+
+test("findIssues flags broken full reference links at the link line", () => {
+  const src = "# Real Heading\n\n[go there][target]\n\n[target]: #missing\n";
+  const issues = findIssues(src).filter((i) => i.kind === "broken-anchor");
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].line, 3);
+});
