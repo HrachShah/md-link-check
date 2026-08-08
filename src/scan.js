@@ -36,7 +36,7 @@ const HEADING_LINK_STRIP_RE = /!?\[([^\]]*)\]\([^)]*\)/g;
 // 'use-npm-install'. We drop only the backticks, NOT the inner text.
 const HEADING_CODE_STRIP_RE = /`+/g;
 
-const REF_DEF_RE = /^ {0,3}\[([^\]]+)\]:\s*(?:<([^>]+)>|(\S+))/gm;
+const REF_DEF_RE = /^ {0,3}\[([^\]]+)\]:\s*(?:<([^>]+)>|(\S+?))(?:\s+"[^"]*")?\s*$/gm;
 
 function extractHeadingRecords(source) {
   const out = [];
