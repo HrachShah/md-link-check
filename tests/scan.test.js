@@ -237,6 +237,11 @@ test("findIssues validates full reference links against their labels", () => {
   assert.equal(findIssues(src).filter((i) => i.kind === "broken-anchor").length, 0);
 });
 
+test("findIssues validates angle-bracket reference destinations", () => {
+  const src = "# Real Heading\n\n[go there][target]\n\n[target]: <#real-heading>\n";
+  assert.equal(findIssues(src).filter((i) => i.kind === "broken-anchor").length, 0);
+});
+
 test("findIssues flags broken full reference links at the link line", () => {
   const src = "# Real Heading\n\n[go there][target]\n\n[target]: #missing\n";
   const issues = findIssues(src).filter((i) => i.kind === "broken-anchor");
