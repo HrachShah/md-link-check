@@ -11,7 +11,7 @@ import { slugify } from "./slug.js";
 // disambiguate ATX headings inside fenced code — the rest of the regex
 // already disallows 'inline backticks' for the simple case, and a stricter
 // fenced-block skip lives in `findIssues`.
-const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/gm;
+const HEADING_RE = /^(#{1,6})[ \t]+(.+?)[ \t]*#?[ \t]*$/gm;
 
 // Markdown links:  [text](href)  (skip images — those start with '!')
 // We also support reference-style links:  [text][ref]  and  [text]
@@ -33,13 +33,31 @@ const HEADING_LINK_STRIP_RE = /!?\[([^\]]*)\]\((?:<[^>\n]*>|(?:[^()\s]|\([^()]*\
 // 'use-npm-install'. We drop only the backticks, NOT the inner text.
 const HEADING_CODE_STRIP_RE = /`+/g;
 
+function maskFencedCode(source) {
+  const lines = source.split("\n");
+  let fence = null;
+  return lines.map((line) => {
+    const match = line.match(/^\s*(`{3,}|~{3,})/);
+    if (fence === null && match) {
+      fence = match[1][0];
+      return " ".repeat(line.length);
+    }
+    if (fence !== null) {
+      if (match && match[1][0] === fence) fence = null;
+      return " ".repeat(line.length);
+    }
+    return line;
+  }).join("\n");
+}
+
 function extractHeadings(source) {
   const out = [];
+  const visibleSource = maskFencedCode(source);
   HEADING_RE.lastIndex = 0;
   let m;
-  while ((m = HEADING_RE.exec(source)) !== null) {
+  while ((m = HEADING_RE.exec(visibleSource)) !== null) {
     const level = m[1].length;
-    const raw = m[2];
+    const raw = source.slice(m.index, m.index + m[0].length).match(/^#{1,6}[ \t]+(.+?)[ \t]*#?[ \t]*$/)?.[1] ?? m[2];
     const stripped = raw
       .replace(HEADING_LINK_STRIP_RE, "$1")
       .replace(HEADING_CODE_STRIP_RE, "");

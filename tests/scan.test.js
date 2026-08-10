@@ -34,6 +34,11 @@ test("extractHeadings strips inline code before slugging", () => {
   assert.equal(headings[0].slug, "use-npm-install");
 });
 
+test("extractHeadings ignores headings inside fenced code", () => {
+  const src = "# Real\n\n```md\n# Not a heading\n```\n\n## Also real\n";
+  assert.deepEqual(extractHeadings(src).map((h) => h.slug), ["real", "also-real"]);
+});
+
 test("extractHeadings handles up to 6 levels of #", () => {
   const src = "# h1\n## h2\n### h3\n#### h4\n##### h5\n###### h6\n";
   const headings = extractHeadings(src);
