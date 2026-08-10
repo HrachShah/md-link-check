@@ -15,7 +15,7 @@ const HEADING_RE = /^(#{1,6})\s+(.+?)\s*#*\s*$/gm;
 
 // Markdown links:  [text](href)  (skip images — those start with '!')
 // We also support reference-style links:  [text][ref]  and  [text]
-const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\(([^)\s]*)(?:\s+"[^"]*")?\)/g;
+const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\((?:<([^>]+)>|([^)\s]*))(?:\s+"[^"]*")?\)/g;
 
 // Full reference link: [text][label]
 const FULL_REF_RE = /(?<!\!)\[([^\]]*)\]\s*\[([^\]]*)\]/g;
@@ -64,7 +64,7 @@ function extractInlineLinks(source) {
   INLINE_LINK_RE.lastIndex = 0;
   let m;
   while ((m = INLINE_LINK_RE.exec(scanSource)) !== null) {
-    out.push({ text: m[1], href: m[2], index: m.index });
+    out.push({ text: m[1], href: m[2] ?? m[3], index: m.index });
   }
   return out;
 }
@@ -150,8 +150,12 @@ function findIssues(source, path = "<input>") {
   // Now check every anchor link against the set of valid slugs.
   const inlineLinks = extractInlineLinks(source);
   for (const link of inlineLinks) {
-    if (!link.href.startsWith("#")) continue;
-    const target = link.href.slice(1).toLowerCase();
+    const href =
+      link.href.startsWith("<") && link.href.endsWith(">")
+        ? link.href.slice(1, -1)
+        : link.href;
+    if (!href.startsWith("#")) continue;
+    const target = href.slice(1).toLowerCase();
     if (target === "") continue; // "[](#)" — a placeholder, skip
     if (!validSlugs.has(target)) {
       issues.push({

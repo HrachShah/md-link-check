@@ -58,10 +58,22 @@ test("extractInlineLinks captures the link's character offset", () => {
   assert.equal(src.slice(links[0].index, links[0].index + 6), "[x](y)");
 });
 
+test("extractInlineLinks accepts angle-bracket destinations", () => {
+  const links = extractInlineLinks("[docs](<https://example.com/a path>)");
+  assert.equal(links.length, 1);
+  assert.equal(links[0].href, "https://example.com/a path");
+});
+
 test("extractInlineLinks keeps anchor-only hrefs", () => {
   const links = extractInlineLinks("[jump](#somewhere)");
   assert.equal(links.length, 1);
   assert.equal(links[0].href, "#somewhere");
+});
+
+test("extractInlineLinks accepts angle-bracket destinations with spaces", () => {
+  const links = extractInlineLinks("[jump](< #somewhere >)");
+  assert.equal(links.length, 1);
+  assert.equal(links[0].href, " #somewhere ");
 });
 
 // --- extractImages -------------------------------------------------------
@@ -108,6 +120,12 @@ test("findIssues flags an anchor that has no matching heading", () => {
 
 test("findIssues accepts a valid anchor link", () => {
   const src = "# Real Heading\n\ngo to [real](#real-heading)\n";
+  const issues = findIssues(src);
+  assert.equal(issues.filter((i) => i.kind === "broken-anchor").length, 0);
+});
+
+test("findIssues accepts angle-bracket inline anchor destinations", () => {
+  const src = "# Real Heading\n\ngo to [real](<#real-heading>)\n";
   const issues = findIssues(src);
   assert.equal(issues.filter((i) => i.kind === "broken-anchor").length, 0);
 });
