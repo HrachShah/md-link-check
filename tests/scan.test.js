@@ -110,6 +110,32 @@ test("findIssues flags an anchor that has no matching heading", () => {
   assert.match(broken[0].message, /#nope/);
 });
 
+test("findIssues ignores links and images inside fenced code", () => {
+  const src = [
+    "# Real",
+    "",
+    "```md",
+    "[missing](#nope)",
+    "![](hidden.png)",
+    "```",
+  ].join("\n");
+  const issues = findIssues(src);
+  assert.equal(issues.length, 0);
+});
+
+test("findIssues ignores links and images inside fenced code", () => {
+  const src = [
+    "# Real",
+    "",
+    "```md",
+    "[missing](#nope)",
+    "![](ignored.png)",
+    "```",
+  ].join("\n");
+  const issues = findIssues(src);
+  assert.equal(issues.length, 0);
+});
+
 test("findIssues accepts a valid anchor link", () => {
   const src = "# Real Heading\n\ngo to [real](#real-heading)\n";
   const issues = findIssues(src);

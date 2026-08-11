@@ -131,7 +131,8 @@ function findIssues(source, path = "<input>") {
   const validSlugs = new Set(headingSlugs.values());
 
   // Now check every anchor link against the set of valid slugs.
-  const inlineLinks = extractInlineLinks(source);
+  const visibleSource = maskFencedCode(source);
+  const inlineLinks = extractInlineLinks(visibleSource);
   for (const link of inlineLinks) {
     if (!link.href.startsWith("#")) continue;
     const target = link.href.slice(1).toLowerCase();
@@ -150,7 +151,7 @@ function findIssues(source, path = "<input>") {
   // deliberately-empty alt ("decorative image") is fine — we only flag
   // images whose alt text is literally missing from the source, i.e. the
   // '[]' form, not the '[decorative]' form.
-  const images = extractImages(source);
+  const images = extractImages(visibleSource);
   for (const img of images) {
     // We can tell 'missing alt' from 'empty alt' by looking at the
     // original source: `![]()` has 0 chars between the brackets, `![alt]()`
