@@ -4,6 +4,7 @@ import {
   slugify,
   extractHeadings,
   extractInlineLinks,
+  extractReferenceLinks,
   extractImages,
   findIssues,
   lineOf,
@@ -75,6 +76,28 @@ test("extractInlineLinks keeps anchor-only hrefs", () => {
   const links = extractInlineLinks("[jump](#somewhere)");
   assert.equal(links.length, 1);
   assert.equal(links[0].href, "#somewhere");
+});
+
+test("extractReferenceLinks captures full and collapsed reference links", () => {
+  const links = extractReferenceLinks("[full][target] and [collapsed][]");
+  assert.deepEqual(links.map(({ text, label }) => ({ text, label })), [
+    { text: "full", label: "target" },
+    { text: "collapsed", label: "collapsed" },
+  ]);
+});
+
+test("findIssues checks anchor targets from reference definitions", () => {
+  const src = [
+    "# Real Heading",
+    "",
+    "[good][real] and [bad][missing]",
+    "",
+    "[real]: #real-heading",
+    "[missing]: #nope",
+  ].join("\n");
+  const broken = findIssues(src).filter((issue) => issue.kind === "broken-anchor");
+  assert.equal(broken.length, 1);
+  assert.match(broken[0].message, /#nope/);
 });
 
 // --- extractImages -------------------------------------------------------
@@ -253,4 +276,10 @@ test("lineOf increments at every newline", () => {
   assert.equal(lineOf(src, 0), 1);
   assert.equal(lineOf(src, 4), 2);
   assert.equal(lineOf(src, 8), 3);
+});
+
+test("extractHeadings handles spaced closing hashes without including them in the slug", () => {
+  const headings = extractHeadings("# Setup ##\n## Setup advanced ###\n");
+  assert.deepEqual(headings.map((heading) => heading.slug), ["setup", "setup-advanced"]);
+  assert.deepEqual(headings.map((heading) => heading.text), ["Setup", "Setup advanced"]);
 });

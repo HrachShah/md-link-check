@@ -11,7 +11,7 @@ import { slugify } from "./slug.js";
 // disambiguate ATX headings inside fenced code — the rest of the regex
 // already disallows 'inline backticks' for the simple case, and a stricter
 // fenced-block skip lives in `findIssues`.
-const HEADING_RE = /^(#{1,6})[ \t]+(.+?)[ \t]*#?[ \t]*$/gm;
+const HEADING_RE = /^(#{1,6})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/gm;
 
 // Markdown links:  [text](href)  (skip images — those start with '!')
 // We also support reference-style links:  [text][ref]  and  [text]
@@ -19,6 +19,11 @@ const INLINE_LINK_RE = /(?<!\!)\[([^\]]*)\]\((?:<([^>\n]*)>|((?:[^()\s]|\([^()]*
 
 // Bare reference link: [text] not followed by ( or [
 const SHORT_REF_RE = /\[([^\]]+)\](?!\s*[\(\[])/g;
+
+// Full reference links and definitions, including the collapsed form
+// [text][] whose label is the link text.
+const FULL_REF_RE = /(?<!\!)\[([^\]]*)\]\s*\[([^\]]*)\]/g;
+const REF_DEF_RE = /^\s{0,3}\[([^\]]+)\]:\s*(?:<([^>\n]*)>|(\S+))/gm;
 
 // Images:  ![alt](src)
 const IMAGE_RE = /!\[([^\]]*)\]\((?:<([^>\n]*)>|((?:[^()\s]|\([^()]*\))*))(?:\s+"([^"]*)")?\)/g;
@@ -88,6 +93,26 @@ function extractShortRefLinks(source) {
   return out;
 }
 
+function extractReferenceLinks(source) {
+  const out = [];
+  FULL_REF_RE.lastIndex = 0;
+  let m;
+  while ((m = FULL_REF_RE.exec(source)) !== null) {
+    out.push({ text: m[1], label: m[2] || m[1], index: m.index });
+  }
+  return out;
+}
+
+function extractReferenceDefinitions(source) {
+  const out = new Map();
+  REF_DEF_RE.lastIndex = 0;
+  let m;
+  while ((m = REF_DEF_RE.exec(source)) !== null) {
+    out.set(m[1].trim().toLowerCase(), m[2] ?? m[3]);
+  }
+  return out;
+}
+
 function extractImages(source) {
   const out = [];
   IMAGE_RE.lastIndex = 0;
@@ -135,8 +160,17 @@ function findIssues(source, path = "<input>") {
   // Now check every anchor link against the set of valid slugs.
   const visibleSource = maskFencedCode(source);
   const inlineLinks = extractInlineLinks(visibleSource);
-  for (const link of inlineLinks) {
-    if (!link.href.startsWith("#")) continue;
+  const referenceDefinitions = extractReferenceDefinitions(visibleSource);
+  const referenceLinks = extractReferenceLinks(visibleSource);
+  const anchorLinks = [
+    ...inlineLinks,
+    ...referenceLinks.map((link) => ({
+      ...link,
+      href: referenceDefinitions.get(link.label.trim().toLowerCase()),
+    })),
+  ];
+  for (const link of anchorLinks) {
+    if (!link.href?.startsWith("#")) continue;
     const target = link.href.slice(1).toLowerCase();
     if (target === "") continue; // "[](#)" — a placeholder, skip
     if (!validSlugs.has(target)) {
@@ -197,6 +231,7 @@ export {
   slugify,
   extractHeadings,
   extractInlineLinks,
+  extractReferenceLinks,
   extractImages,
   findIssues,
   lineOf,
