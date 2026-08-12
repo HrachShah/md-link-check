@@ -61,7 +61,9 @@ function extractHeadings(source) {
     const stripped = raw
       .replace(HEADING_LINK_STRIP_RE, "$1")
       .replace(HEADING_CODE_STRIP_RE, "");
-    out.push({ level, text: raw, slug: slugify(stripped) });
+    const heading = { level, text: raw, slug: slugify(stripped) };
+    Object.defineProperty(heading, "index", { value: m.index });
+    out.push(heading);
   }
   return out;
 }

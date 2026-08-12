@@ -164,6 +164,12 @@ test("findIssues flags duplicate heading slugs with a '-N' suffix", () => {
   assert.match(dupes[0].message, /setup-1/);
 });
 
+test("findIssues reports the source line for duplicate headings", () => {
+  const src = "# Setup\n\ntext\n\n## Setup\n";
+  const issue = findIssues(src).find((item) => item.kind === "duplicate-heading");
+  assert.equal(issue.line, 5);
+});
+
 test("findIssues does NOT flag headings whose slugs differ", () => {
   const src = "# Setup\n\n## Setup (advanced)\n\n## Config\n";
   const issues = findIssues(src);
