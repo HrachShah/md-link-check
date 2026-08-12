@@ -44,11 +44,11 @@ function maskFencedCode(source) {
   return lines.map((line) => {
     const match = line.match(/^\s*(`{3,}|~{3,})/);
     if (fence === null && match) {
-      fence = match[1][0];
+      fence = { char: match[1][0], length: match[1].length };
       return " ".repeat(line.length);
     }
     if (fence !== null) {
-      if (match && match[1][0] === fence) fence = null;
+      if (match && match[1][0] === fence.char && match[1].length >= fence.length) fence = null;
       return " ".repeat(line.length);
     }
     return line;
@@ -62,7 +62,10 @@ function extractHeadings(source) {
   let m;
   while ((m = HEADING_RE.exec(visibleSource)) !== null) {
     const level = m[1].length;
-    const raw = source.slice(m.index, m.index + m[0].length).match(/^#{1,6}[ \t]+(.+?)[ \t]*#?[ \t]*$/)?.[1] ?? m[2];
+    const raw = source
+      .slice(m.index, m.index + m[0].length)
+      .replace(/^#{1,6}[ \t]+/, "")
+      .replace(/[ \t]+#+[ \t]*$/, "");
     const stripped = raw
       .replace(HEADING_LINK_STRIP_RE, "$1")
       .replace(HEADING_CODE_STRIP_RE, "");

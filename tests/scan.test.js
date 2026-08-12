@@ -40,6 +40,21 @@ test("extractHeadings ignores headings inside fenced code", () => {
   assert.deepEqual(extractHeadings(src).map((h) => h.slug), ["real", "also-real"]);
 });
 
+test("extractHeadings keeps a longer fence open past a shorter fence", () => {
+  const src = [
+    "# Real",
+    "",
+    "````md",
+    "# Hidden",
+    "```",
+    "# Still hidden",
+    "````",
+    "",
+    "## Visible",
+  ].join("\n");
+  assert.deepEqual(extractHeadings(src).map((h) => h.slug), ["real", "visible"]);
+});
+
 test("extractHeadings handles up to 6 levels of #", () => {
   const src = "# h1\n## h2\n### h3\n#### h4\n##### h5\n###### h6\n";
   const headings = extractHeadings(src);
